@@ -1,0 +1,53 @@
+# Mechanical boundary enforcement — runs OUTSIDE the agent, on every PR.
+#
+# This is layer 2 of enforcement. On its own it only REPORTS. It becomes a
+# wall when you mark the "boundaries" check as REQUIRED in branch protection
+# and forbid direct pushes to main — see ../../BRANCH_PROTECTION.md.
+#
+# Trim the install steps to the language(s) your repo actually uses.
+
+name: boundaries
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: this job only needs to read the code. The agent/CI token
+# must NOT be able to administer the repo or dismiss this check.
+permissions:
+  contents: read
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install BoundaryGuard dependency
+        run: pip install pyyaml
+
+      # --- TypeScript / JavaScript repos -----------------------------------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install dependency-cruiser
+        run: |
+          if [ -f package-lock.json ]; then npm ci; fi
+          npm i -D dependency-cruiser
+
+      # --- Python repos ----------------------------------------------------
+      - name: Install import-linter
+        run: pip install import-linter
+      # If you switched the manifest to `adapter: tach`, replace the line above
+      # with:  pip install tach   (and commit your tach.toml)
+
+      - name: Enforce boundaries
+        run: |
+          python bigbrainBoundaryGuard/check_boundaries.py doctor
+          python bigbrainBoundaryGuard/check_boundaries.py check

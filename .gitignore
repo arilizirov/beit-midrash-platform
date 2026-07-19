@@ -1,0 +1,28 @@
+# Secrets — never commit these
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+*.local
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

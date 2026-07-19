@@ -1,0 +1,31 @@
+{
+  "name": "bigbrainSoftwareArchitectureJudgmentRouter",
+  "purpose": "Judgment-router skill pack for Codex based on senior software architecture and engineering sources.",
+  "entrypoint": "SKILL.md",
+  "router": "router/00-judgment-router.md",
+  "rules": [
+    "01-clean-code-local-design.md",
+    "02-refactoring-safe-change.md",
+    "03-legacy-code-change.md",
+    "04-testing-and-goos.md",
+    "05-production-readiness.md",
+    "06-distributed-systems.md",
+    "07-architecture-tradeoffs.md",
+    "08-engineering-sequencing.md",
+    "09-contracts-and-migration-safety.md",
+    "10-performance-and-scalability.md",
+    "11-vertical-slices.md",
+    "12-e2e-and-qa.md"
+  ],
+  "sources_found": {
+    "Clean Code": "sources/Clean Code - notes.md",
+    "Refactoring": "sources/Refactoring - notes.md",
+    "Working Effectively with Legacy Code": "sources/Working Effectively with Legacy Code - notes.md",
+    "Release It": "sources/Release It - notes.md",
+    "Designing Data-Intensive Applications": "sources/Designing Data-Intensive Applications - notes.md",
+    "Software Architecture The Hard Parts": "sources/Software Architecture The Hard Parts - notes.md",
+    "Growing Object-Oriented Software Guided by Tests": "sources/Growing Object-Oriented Software Guided by Tests - notes.md",
+    "An Elegant Puzzle": "sources/An Elegant Puzzle - notes.md"
+  },
+  "sources_note": "Original short principle summaries (paraphrase), not book text."
+}

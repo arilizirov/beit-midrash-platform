@@ -1,0 +1,15 @@
+[project]
+name = "project"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+# Standard Python commands for this project:
+#   ruff check .          (lint)
+#   ruff format --check . (format check)
+#   pytest                (tests)
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+addopts = "-q"

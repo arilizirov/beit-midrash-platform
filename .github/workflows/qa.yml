@@ -1,0 +1,95 @@
+# QA gates — top of the pyramid + audits. See rules/12-e2e-and-qa.md.
+#
+#  - e2e     : runs Playwright IF a playwright.config.* exists (no-op otherwise)
+#  - audit   : dependency vulnerabilities (npm audit / pip-audit)
+#  - secrets : secret scan (gitleaks)
+#
+# Make `audit` and `secrets` required checks in branch protection. Make `e2e`
+# required once you've written journeys (see bigbrainQA/).
+
+name: qa
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pyyaml (for verify)
+        run: pip install pyyaml
+      - name: Run e2e if configured
+        run: |
+          if ls playwright.config.* >/dev/null 2>&1; then
+            npm ci || npm i
+            npx playwright install --with-deps
+            python bigbrain_verify.py --only e2e
+          else
+            echo "no playwright.config.* — e2e not adopted yet, skipping (see bigbrainQA/)"
+          fi
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: npm audit (if JS)
+        run: |
+          if [ -f package.json ]; then
+            npm audit --audit-level=high
+          else
+            echo "no package.json; skipping npm audit"
+          fi
+      - name: pip-audit (if Python)
+        run: |
+          if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
+            pip install pip-audit
+            pip-audit || exit 1
+          else
+            echo "no Python deps manifest; skipping pip-audit"
+          fi
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Visibility only — NEVER a required check. Surfaces tech-debt proxies in the
+  # run log for a human to triage. Do NOT make this required (gating on debt
+  # proxies just teaches the agent to game them).
+  debt-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so churn is meaningful
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tech-debt report (informational)
+        run: python bigbrainQA/debt_report.py --since 300 --top 15

@@ -1,0 +1,114 @@
+# boundaries.yaml — LearnTorah (בית המדרש הדיגיטלי)
+# ---------------------------------------------------------------------------
+# Policy source of truth. Derived from docs/SPEC.md §2 (service modules),
+# §4 (data model) and §3 (build order). Deny-by-default.
+#
+# STATUS: starting policy, written at kit setup BEFORE any app code exists.
+# `doctor` stays red until each module's folder is stamped by
+#   python bigbrainGenerator/new_domain.py <name>
+# during its slice. Changing this file later is a deliberate PR with an ADR
+# naming the present-day force — never a workaround for a failing check.
+# ---------------------------------------------------------------------------
+
+version: 1
+
+# TS/JS app (Next.js App Router). Resolves to dependency-cruiser once
+# package.json exists; no-ops before then.
+adapter: auto
+
+# Next.js `src/` directory: routes at src/app, domains at src/features/<name>.
+source_root: src
+
+# SPEC §8 is feature-oriented, not domain-oriented. The generator honors this.
+layout: features
+
+modules:
+  # ---- composition root --------------------------------------------------
+  app:
+    path: app                       # Next.js App Router: routes, server actions
+    public: [index]
+
+  # ---- platform layer (SPEC §2) -----------------------------------------
+  platform:
+    path: platform
+    # db=Prisma, auth=Auth.js, storage=R2/StorageService, jobs=Postgres queue,
+    # tenancy=TenancyGuard+RLS, telemetry=ActivityLog/EventLog sinks
+    public: [db, auth, storage, jobs, tenancy, telemetry]
+
+  # ---- presentation kit --------------------------------------------------
+  ui:
+    path: components/ui             # RTL design system primitives; no domain logic
+    public: [index]
+
+  # ---- domains (SPEC §4) -------------------------------------------------
+  identity:
+    path: features/identity         # Group, User, Membership, Invitation, can()/RBAC
+    public: [index]
+  taxonomy:
+    path: features/taxonomy         # Topic, Category, Tag + per-type tag joins
+    public: [index]
+  discussions:
+    path: features/discussions      # Discussion, Contribution, Comment, Summary
+    public: [index]
+  content:
+    path: features/content          # Article, Note, TableBlock, Revision, ContentService
+    public: [index]
+  sources:
+    path: features/sources          # Source, SourceCitation, SourceRefService (normalizer)
+    public: [index]
+  files:
+    path: features/files            # Attachment + presigned R2 flow
+    public: [index]
+  search:
+    path: features/search           # SearchService (tsvector + pg_trgm, bm_normalize)
+    public: [index]
+  feed:
+    path: features/feed             # NewsPost (חדשות)
+    public: [index]
+  notifications:
+    path: features/notifications    # Notification, Follow, Reaction
+    public: [index]
+  dashboard:
+    path: features/dashboard        # Widget, UserWidgetPref
+    public: [index]
+  editor:
+    path: features/editor           # the 4 TipTap nodes (SPEC §7)
+    public: [index]
+
+# Boring, stable, imports nothing; implicitly importable by everyone.
+# ids (cuid), Result/errors, Hebrew bidi + nikud helpers, shared enums.
+shared_kernel:
+  path: shared_kernel
+  public: [index]
+
+# DENY BY DEFAULT — list only what is allowed.
+# Shape: domains do not import each other sideways except where the spec forces
+# it (a Discussion needs its Topic). Indexing and notifying are PUSH-based — a
+# domain calls search/notifications, never the reverse — so search stays a leaf
+# instead of becoming a hub that depends on every domain it indexes.
+allow:
+  platform: []                      # platform depends on no domain
+  ui: []                            # pure presentation
+  shared_kernel: []                 # imports nothing
+
+  identity:      [platform, ui]
+  taxonomy:      [platform, ui, identity, search]
+  discussions:   [platform, ui, identity, taxonomy, search, notifications]
+  content:       [platform, ui, identity, taxonomy, search]
+  sources:       [platform, ui, identity, search]
+  files:         [platform, ui, identity]
+  search:        [platform]
+  feed:          [platform, ui, identity, search]
+  notifications: [platform, ui, identity]
+  dashboard:     [platform, ui, identity]
+  editor:        [platform, ui, content, sources, files]
+
+  # Composition root: wires everything, owned by nobody.
+  app: [platform, ui, identity, taxonomy, discussions, content, sources,
+        files, search, feed, notifications, dashboard, editor]
+
+# Deep-import ban: crossing into a module is allowed only through its `public`
+# entries — never into its internal files. This is what keeps a boundary real.
+enforce_public_surface: true
+
+# (Python block removed — this is a TS/JS app; the Python adapters do not apply.)

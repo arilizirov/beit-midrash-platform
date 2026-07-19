@@ -1,0 +1,77 @@
+# Quality + granularity gates (complement to boundaries.yml).
+#
+#  - verify: typecheck / lint / test  (boundaries run in their own workflow)
+#  - pr-size: fails PRs over a line threshold, FORCING work into small stages.
+#             This is the mechanical proxy for "stacked PRs": you can't merge
+#             ten stages in one lump because the diff is too big.
+#
+# Mark `verify` and `pr-size` as required checks in branch protection alongside
+# `boundaries` (see BRANCH_PROTECTION.md).
+
+name: gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # Arm the coverage gate by setting a number (e.g. "80"). Empty = off.
+      # Requires pytest-cov (Python) or coverage wired into your `npm test`.
+      MIN_COVERAGE: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (trim to your stack)
+        run: |
+          if [ -f package.json ]; then npm ci || npm i; fi
+          if [ -f pyproject.toml ]; then pip install -e ".[dev]" || pip install ruff pytest pytest-cov; fi
+      - name: Run the discipline cycle (boundaries.yml owns boundaries)
+        run: |
+          ARGS="--no-boundaries --no-e2e"
+          if [ -n "$MIN_COVERAGE" ]; then ARGS="$ARGS --min-coverage $MIN_COVERAGE"; fi
+          echo "running: python bigbrain_verify.py $ARGS"
+          python bigbrain_verify.py $ARGS
+      - name: Test the kit's own tools
+        run: python tests/run_tests.py
+      - name: Lint the skills for consistency
+        run: python bigbrainSkillCheck/skill_lint.py
+
+  pr-size:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      MAX_CHANGED_LINES: "400"   # tune to taste; smaller = stricter staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enforce small PRs (stacked-PR proxy)
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}" --depth=1 || true
+          # Exclude lockfiles and generated/vendored paths — a legit lockfile bump
+          # shouldn't trip the gate; only human-authored changes should count.
+          CHANGED=$(git diff --numstat "$BASE"...HEAD | awk '
+            $1!="-" && $2!="-" &&
+            $3 !~ /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Cargo\.lock|go\.sum)$/ &&
+            $3 !~ /(^|\/)(dist|build|vendor|node_modules|coverage|\.next)\// &&
+            $3 !~ /\.(min\.(js|css)|snap|lock)$/
+            {s+=$1+$2} END {print s+0}')
+          echo "human-authored changed lines: $CHANGED (limit $MAX_CHANGED_LINES)"
+          if [ "$CHANGED" -gt "$MAX_CHANGED_LINES" ]; then
+            echo "::error::PR too large ($CHANGED > $MAX_CHANGED_LINES). Break it into stacked PRs, one stage each."
+            exit 1
+          fi

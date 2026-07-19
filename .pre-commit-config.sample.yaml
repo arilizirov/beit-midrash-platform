@@ -1,0 +1,24 @@
+# .pre-commit-config.sample.yaml — cross-platform local fast feedback.
+#
+# The raw hook in bigbrainBoundaryGuard/hooks/pre-commit.sample is bash and
+# needs Git Bash on Windows. THIS file uses the `pre-commit` framework, which
+# works the same on Windows/macOS/Linux and needs no shell scripting.
+#
+# Setup (any OS):
+#   pip install pre-commit
+#   cp .pre-commit-config.sample.yaml .pre-commit-config.yaml
+#   pre-commit install
+#
+# Reminder: this is FAST FEEDBACK, not a guarantee. It's bypassable
+# (git commit --no-verify) and absent on fresh clones until `pre-commit install`.
+# The real wall is CI + branch protection (BRANCH_PROTECTION.md).
+
+repos:
+  - repo: local
+    hooks:
+      - id: bigbrain-boundaries
+        name: boundary check (BoundaryGuard)
+        entry: python bigbrainBoundaryGuard/check_boundaries.py check
+        language: system
+        pass_filenames: false
+        always_run: true

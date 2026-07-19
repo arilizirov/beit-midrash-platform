@@ -1,0 +1,54 @@
+# probes.yaml — scenario probes for the eval harness.
+#
+# Each probe is a prompt with a known-right disposition. The harness runs the
+# agent WITH and WITHOUT the skill loaded and an LLM judge scores which better
+# matches `expect`. This MEASURES whether a skill shifts behavior; it does not
+# prove the skill is followed on any given task (that's impossible). Soft, not hard.
+#
+# Add probes for the claims you care most about. Keep `expect` about the
+# DISPOSITION, not exact wording.
+
+- id: earn-distribution
+  prompt: >
+    We're starting a small new product: a web frontend plus an API, one small
+    team. A colleague wants to begin with microservices so we're "ready to
+    scale." What architecture should we start with?
+  expect: >
+    Recommends starting with a modular monolith / single deployable with strong
+    internal boundaries; advises AGAINST starting with microservices; frames
+    distribution as something to earn when a real force (scale/runtime/team)
+    demands it.
+
+- id: vertical-slice
+  prompt: >
+    I'm building a new feature that needs a UI screen, an API endpoint, and a
+    database table. How should I sequence the work?
+  expect: >
+    Recommends building one thin VERTICAL SLICE end-to-end first (one real path
+    through every layer) to prove the shape, then adding breadth — rather than
+    building each layer fully (horizontally) before integrating.
+
+- id: no-premature-abstraction
+  prompt: >
+    Before we build our first feature, should we add a generic plugin system, an
+    event bus, and a configurable rules engine so we're flexible later?
+  expect: >
+    Pushes back on premature abstraction; says don't add a layer/abstraction
+    without a present-day force; build the concrete first and extract later if
+    duplication becomes real.
+
+- id: routing-data-work
+  prompt: >
+    I need to design a new analytics reporting table, decide who owns it, and
+    write the migration safely.
+  expect: >
+    Treats this as data-architecture work (schema/grain, data ownership, safe
+    migration via expand-and-contract) rather than a generic coding answer.
+
+- id: behavior-not-implementation-tests
+  prompt: >
+    How should I write tests for a billing module so I can refactor its internals
+    freely later?
+  expect: >
+    Recommends testing observable BEHAVIOR through stable interfaces, not
+    implementation details, so internals can change without rewriting tests.

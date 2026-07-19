@@ -1,0 +1,85 @@
+# boundaries.yaml — portable boundary manifest
+# ---------------------------------------------------------------------------
+# ONE file, language-agnostic. This is your policy and the single source of
+# truth. BoundaryGuard translates it into the mature standard validator for
+# each language (dependency-cruiser for TS/JS, import-linter or tach for
+# Python). BoundaryGuard does NOT analyze the graph itself — the proven tools
+# do that. You own the policy; they own the hard part.
+#
+# Rename this to `boundaries.yaml` and edit it for your repo.
+# ---------------------------------------------------------------------------
+
+version: 1
+
+# Which language adapter to use.
+#   auto                -> detect from package.json / pyproject.toml and run
+#                          every validator that applies (good for monorepos)
+#   dependency-cruiser  -> force TS/JS
+#   import-linter       -> force Python (default Python validator)
+#   tach                -> force Python (opt-in alternative; see README)
+adapter: auto
+
+# The directory every module `path` below is relative to.
+# (Polyglot monorepo with different roots per app? Put a separate
+#  boundaries.yaml inside each app and run BoundaryGuard once per app.)
+source_root: src
+
+# Folder convention for domains, honored by the generator: `domains` (default)
+# or `features`. The generator stamps <source_root>/<layout>/<name>/... and
+# registers that path below. This is the SINGLE SOURCE OF TRUTH for the
+# convention — do not override it in docs/STACK.md (that would contradict
+# AGENTS.md, and skill-lint will flag it).
+layout: domains
+
+# Modules = your domains + platform layers. Each is a named region of the tree.
+# `public` lists the ONLY entrypoints other modules may import from. Anything
+# not in `public` is internal and off-limits across the boundary.
+modules:
+  billing:
+    path: domains/billing
+    public: [index]                         # others may import billing/index only
+  users:
+    path: domains/users
+    public: [index]
+  notifications:
+    path: domains/notifications
+    public: [index]
+  platform:
+    path: platform                          # db, auth, queue, telemetry, ...
+    public: [db, auth, queue, telemetry]    # each is a subdir with an index
+
+# A tiny, heavily-policed region everything may depend on. Keep it boring and
+# stable. It may import nothing. If it grows, that is a smell, not a feature.
+# Delete this block if you don't want a shared kernel.
+# NOTE: a path segment becomes a Python package name for the Python adapters,
+# and Python packages cannot contain hyphens — so use `shared_kernel`, not
+# `shared-kernel`. (TS/JS doesn't care; this name is fine for both.)
+shared_kernel:
+  path: shared_kernel
+  public: [index]
+
+# Dependencies are DENY BY DEFAULT. List only what is allowed.
+#   <module>: [<modules it may import>]
+# shared_kernel is implicitly importable by everyone and is omitted here.
+allow:
+  billing: [platform]
+  users: [platform]
+  notifications: [platform, users]          # may read users' PUBLIC surface only
+  platform: []                              # platform depends on no domain
+
+# Deep-import ban. When true, crossing into a module from outside is allowed
+# only through its `public` entries — never into its internal files.
+# This is what actually keeps a boundary real. Turn off only with a reason.
+enforce_public_surface: true
+
+# Python-specific settings (ignored for TS/JS).
+python:
+  # The importable top-level package. REQUIRED for the import-linter adapter.
+  # e.g. code lives at src/myapp/... -> root_package: myapp
+  root_package: myapp
+  # import-linter cannot express "public surface" natively. If you adopt the
+  # convention that internal code lives under <module>/_internal/, set this to
+  # true and BoundaryGuard will forbid any other module from importing those
+  # _internal packages. For full public-interface enforcement WITHOUT this
+  # convention, use the tach adapter instead (it does it natively).
+  enforce_internal_convention: false

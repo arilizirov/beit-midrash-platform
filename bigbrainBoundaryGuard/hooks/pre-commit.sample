@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# bigbrain BoundaryGuard — local pre-commit hook (FAST FEEDBACK, NOT A GUARANTEE).
+#
+# This catches boundary violations before you commit, so you fail in 1 second
+# instead of 2 minutes in CI. But it is BYPASSABLE: `git commit --no-verify`
+# skips it, and a fresh clone has no hooks until someone installs them.
+# The real wall is CI + branch protection — see BRANCH_PROTECTION.md.
+#
+# Install (pick one):
+#   cp bigbrainBoundaryGuard/hooks/pre-commit.sample .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# or, to version it with the repo:
+#   git config core.hooksPath bigbrainBoundaryGuard/hooks   # then rename this file to `pre-commit`
+# or use the `pre-commit` framework with an equivalent local hook.
+#
+# WINDOWS: this is a bash script and needs Git Bash (ships with Git for Windows).
+# On native Windows the simplest cross-platform path is the `pre-commit` framework
+# instead — see `.pre-commit-config.sample.yaml`. (The Python tools it calls are
+# already cross-platform; only this shell wrapper is Unix-y.)
+
+set -euo pipefail
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "pre-commit: python3 not found; skipping boundary check" >&2
+  exit 0
+fi
+
+python3 bigbrainBoundaryGuard/check_boundaries.py check

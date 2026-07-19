@@ -1,0 +1,39 @@
+{
+  "name": "bigbrainDataArchitectureJudgmentRouter",
+  "purpose": "Judgment-router skill pack for Codex based on 8 data architecture sources.",
+  "entrypoint": "SKILL.md",
+  "router": "router/00-judgment-router.md",
+  "rules": [
+    "01-conceptual-modeling-and-identity.md",
+    "02-operational-vs-analytical.md",
+    "03-dimensional-analytics.md",
+    "04-data-engineering-lifecycle.md",
+    "05-distributed-data-systems.md",
+    "06-enterprise-warehouse-data-vault.md",
+    "07-data-products-data-mesh.md",
+    "08-governance-security-quality.md",
+    "09-ml-reverse-etl-performance.md",
+    "10-contracts-schema-evolution.md"
+  ],
+  "sources": [
+    "sources/Building the Data Warehouse - notes.md",
+    "sources/DAMA-DMBOK - notes.md",
+    "sources/Data Mesh - notes.md",
+    "sources/Data and Reality - notes.md",
+    "sources/Designing Data-Intensive Applications - notes.md",
+    "sources/Fundamentals of Data Engineering - notes.md",
+    "sources/Modeling the Agile Data Warehouse with Data Vault - notes.md",
+    "sources/The Data Warehouse Toolkit - notes.md"
+  ],
+  "sources_found": {
+    "Building the Data Warehouse": "sources/Building the Data Warehouse - notes.md",
+    "DAMA-DMBOK": "sources/DAMA-DMBOK - notes.md",
+    "Data Mesh": "sources/Data Mesh - notes.md",
+    "Data and Reality": "sources/Data and Reality - notes.md",
+    "Designing Data-Intensive Applications": "sources/Designing Data-Intensive Applications - notes.md",
+    "Fundamentals of Data Engineering": "sources/Fundamentals of Data Engineering - notes.md",
+    "Modeling the Agile Data Warehouse with Data Vault": "sources/Modeling the Agile Data Warehouse with Data Vault - notes.md",
+    "The Data Warehouse Toolkit": "sources/The Data Warehouse Toolkit - notes.md"
+  },
+  "sources_note": "Original short principle summaries (paraphrase), not book text."
+}
