@@ -123,6 +123,10 @@ model Tag {
   group  Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
   topics TopicTag[]
 
+  // NOTE a partial unique on (groupId, name) WHERE deletedAt IS NULL lives in
+  // migration `tag_name_unique` — Prisma cannot express partial uniques, and
+  // without it the tag vocabulary silently forks (two "קדשים" tags with
+  // different slugs and no error).
   @@unique([groupId, slug])
   @@unique([id, groupId])
 }
