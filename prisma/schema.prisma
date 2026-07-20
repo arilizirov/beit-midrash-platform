@@ -47,6 +47,69 @@ model Group {
   invitations Invitation[]
 }
 
+/// SPEC §4 cross-cutting: closed set of revision-bearing entities.
+enum RevisionEntityType {
+  DISCUSSION
+  CONTRIBUTION
+  ARTICLE
+  NOTE
+  SUMMARY
+  TABLEBLOCK
+  NEWSPOST
+}
+
+/// Full-snapshot version history (SPEC §4/§7): one row per explicit save or
+/// 3-minute debounce. Polymorphic (no DB FK on entityId — SPEC §4 rule).
+model Revision {
+  id         String             @id @default(cuid())
+  groupId    String
+  entityType RevisionEntityType
+  entityId   String
+  version    Int
+  contentJson Json
+  title      String?
+  editedById String
+  changeNote String?
+  createdAt  DateTime           @default(now())
+  deletedAt  DateTime?
+
+  @@unique([entityType, entityId, version])
+  @@index([groupId, entityType, entityId])
+}
+
+/// Append-only audit (SPEC §4): who did what. APPEND-ONLY IS DB-ENFORCED —
+/// the migration grants only INSERT+SELECT policies; with RLS FORCEd and no
+/// UPDATE/DELETE policy, Postgres rejects both outright. entityType/action
+/// are strings by design (free-form dotted actions, no FK, no enum churn).
+model ActivityLog {
+  id           String   @id @default(cuid())
+  groupId      String
+  actorId      String?
+  action       String
+  entityType   String
+  entityId     String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@index([groupId, createdAt])
+}
+
+/// Read-side metrics (SPEC §4): searches, opens, revisits — powers the
+/// north-star. Same DB-enforced append-only shape as ActivityLog.
+model EventLog {
+  id           String   @id @default(cuid())
+  groupId      String
+  userId       String?
+  event        String
+  entityType   String?
+  entityId     String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@index([groupId, createdAt])
+  @@index([groupId, event])
+}
+
 /// Invite-only onboarding (SPEC §4). Token stored HASHED, single-use; the
 /// invite URL carries groupId + raw token, so accept runs inside withGroup —
 /// RLS applies to this table like any other groupId row (no bypass needed).

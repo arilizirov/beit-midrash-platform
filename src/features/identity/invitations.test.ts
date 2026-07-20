@@ -156,6 +156,27 @@ describe("invitation flow", () => {
   });
 });
 
+describe("audit trail (SPEC §4 — rides the mutation's tx)", () => {
+  it("create→accept leaves invitation.create + membership.create in ActivityLog", async () => {
+    const { withGroup } = await import("../../platform/tenancy");
+    const { rawToken } = await createInvitation(db, {
+      groupId: groupA, email: "audited@inv.local", role: "MEMBER", invitedById: adminId,
+    });
+    const user = await ensureInvitedUser(db, groupA, rawToken);
+    await completeAccept(db, {
+      groupId: groupA, rawToken, userId: user!.id, userEmail: "audited@inv.local",
+    });
+    // Audit rows reference entityId only — NO PII in the unerasable log
+    // (debt-hawk, F3a). Recover the email via entityId → Invitation.
+    const all = await withGroup(db, groupA, (tx) =>
+      tx.activityLog.findMany({ select: { action: true, metadataJson: true } }),
+    );
+    expect(all.map((a) => a.action)).toContain("invitation.create");
+    expect(all.map((a) => a.action)).toContain("membership.create");
+    expect(JSON.stringify(all.map((a) => a.metadataJson))).not.toContain("audited@inv.local");
+  });
+});
+
 describe("revoke & list (F2c-2 admin surface)", () => {
   it("revoke kills the token; list shows pending only", async () => {
     const { listPendingInvitations, revokeInvitation } = await import("./service");
