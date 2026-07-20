@@ -22,57 +22,18 @@ source_root: src
 # SPEC §8 is feature-oriented, not domain-oriented. The generator honors this.
 layout: features
 
+# LIVE MODULES ONLY. The boundary check over paths that match no files passes
+# vacuously, so a module enters this block the moment its slice stamps real
+# folders — never before. (ADR: docs/adr/0001-boundaries-live-modules-only.md)
+#
+# The TARGET module map (all planned modules + their allowed dependencies) has
+# ONE home: docs/ARCHITECTURE.md. When a slice re-declares a module here, copy
+# its allow-list from that table exactly — and reviewers diff against it,
+# because over-granting is not mechanically caught until then.
 modules:
   # ---- composition root --------------------------------------------------
   app:
     path: app                       # Next.js App Router: routes, server actions
-    public: [index]
-
-  # ---- platform layer (SPEC §2) -----------------------------------------
-  platform:
-    path: platform
-    # db=Prisma, auth=Auth.js, storage=R2/StorageService, jobs=Postgres queue,
-    # tenancy=TenancyGuard+RLS, telemetry=ActivityLog/EventLog sinks
-    public: [db, auth, storage, jobs, tenancy, telemetry]
-
-  # ---- presentation kit --------------------------------------------------
-  ui:
-    path: components/ui             # RTL design system primitives; no domain logic
-    public: [index]
-
-  # ---- domains (SPEC §4) -------------------------------------------------
-  identity:
-    path: features/identity         # Group, User, Membership, Invitation, can()/RBAC
-    public: [index]
-  taxonomy:
-    path: features/taxonomy         # Topic, Category, Tag + per-type tag joins
-    public: [index]
-  discussions:
-    path: features/discussions      # Discussion, Contribution, Comment, Summary
-    public: [index]
-  content:
-    path: features/content          # Article, Note, TableBlock, Revision, ContentService
-    public: [index]
-  sources:
-    path: features/sources          # Source, SourceCitation, SourceRefService (normalizer)
-    public: [index]
-  files:
-    path: features/files            # Attachment + presigned R2 flow
-    public: [index]
-  search:
-    path: features/search           # SearchService (tsvector + pg_trgm, bm_normalize)
-    public: [index]
-  feed:
-    path: features/feed             # NewsPost (חדשות)
-    public: [index]
-  notifications:
-    path: features/notifications    # Notification, Follow, Reaction
-    public: [index]
-  dashboard:
-    path: features/dashboard        # Widget, UserWidgetPref
-    public: [index]
-  editor:
-    path: features/editor           # the 4 TipTap nodes (SPEC §7)
     public: [index]
 
 # Boring, stable, imports nothing; implicitly importable by everyone.
@@ -81,31 +42,14 @@ shared_kernel:
   path: shared_kernel
   public: [index]
 
-# DENY BY DEFAULT — list only what is allowed.
+# DENY BY DEFAULT — list only what is allowed (live modules only; the target
+# allow-map lives in the comment block above and activates with each slice).
 # Shape: domains do not import each other sideways except where the spec forces
-# it (a Discussion needs its Topic). Indexing and notifying are PUSH-based — a
-# domain calls search/notifications, never the reverse — so search stays a leaf
-# instead of becoming a hub that depends on every domain it indexes.
+# it. Indexing and notifying are PUSH-based — a domain calls search/
+# notifications, never the reverse — so search stays a leaf, not a hub.
 allow:
-  platform: []                      # platform depends on no domain
-  ui: []                            # pure presentation
   shared_kernel: []                 # imports nothing
-
-  identity:      [platform, ui]
-  taxonomy:      [platform, ui, identity, search]
-  discussions:   [platform, ui, identity, taxonomy, search, notifications]
-  content:       [platform, ui, identity, taxonomy, search]
-  sources:       [platform, ui, identity, search]
-  files:         [platform, ui, identity]
-  search:        [platform]
-  feed:          [platform, ui, identity, search]
-  notifications: [platform, ui, identity]
-  dashboard:     [platform, ui, identity]
-  editor:        [platform, ui, content, sources, files]
-
-  # Composition root: wires everything, owned by nobody.
-  app: [platform, ui, identity, taxonomy, discussions, content, sources,
-        files, search, feed, notifications, dashboard, editor]
+  app: []                           # composition root; gains deps as slices land
 
 # Deep-import ban: crossing into a module is allowed only through its `public`
 # entries — never into its internal files. This is what keeps a boundary real.
