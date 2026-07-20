@@ -4,6 +4,8 @@
  * and acceptable for this documented admin operation).
  */
 import { createClient } from "../src/platform/db";
+import { seedGroupSlug } from "../src/shared_kernel/group-slug";
+import { seedGroupSlug } from "../src/shared_kernel/group-slug";
 
 async function main() {
   try {
@@ -12,7 +14,7 @@ async function main() {
     /* env from environment */
   }
   const url = process.env.DATABASE_URL;
-  const slug = process.env.SEED_GROUP_SLUG ?? "beit-midrash";
+  const slug = seedGroupSlug(); // ONE definition, shared with the runtime guard
   // Auth.js lowercases+trims the sign-in identifier before it ever reaches
   // us; User.email is case-sensitive unique. Normalize here or a mixed-case
   // seed email locks the owner out of a fresh deploy. (F2c accept flow must
