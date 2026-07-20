@@ -43,8 +43,11 @@ model Group {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  memberships Membership[]
-  invitations Invitation[]
+  memberships  Membership[]
+  invitations  Invitation[]
+  revisions    Revision[]
+  activityLogs ActivityLog[]
+  eventLogs    EventLog[]
 }
 
 /// SPEC §4 cross-cutting: closed set of revision-bearing entities.
@@ -59,7 +62,12 @@ enum RevisionEntityType {
 }
 
 /// Full-snapshot version history (SPEC §4/§7): one row per explicit save or
-/// 3-minute debounce. Polymorphic (no DB FK on entityId — SPEC §4 rule).
+/// 3-minute debounce. Polymorphic (no DB FK on entityId — SPEC §4 rule), but
+/// groupId IS a real FK: referential integrity must not depend on RLS alone.
+/// Snapshot immutability is APP-enforced (the RLS policy must stay FOR ALL —
+/// soft-delete is an UPDATE, purge a DELETE). deletedAt is intended: blanket
+/// SPEC convention; purge hard-deletes past it. FUTURE WRITER: version is
+/// MAX+1 — serialize per entity (row lock) or two saves race one version.
 model Revision {
   id         String             @id @default(cuid())
   groupId    String
@@ -72,6 +80,8 @@ model Revision {
   changeNote String?
   createdAt  DateTime           @default(now())
   deletedAt  DateTime?
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
   @@unique([entityType, entityId, version])
   @@index([groupId, entityType, entityId])
@@ -91,6 +101,8 @@ model ActivityLog {
   metadataJson Json?
   createdAt    DateTime @default(now())
 
+  group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
+
   @@index([groupId, createdAt])
 }
 
@@ -105,6 +117,8 @@ model EventLog {
   entityId     String?
   metadataJson Json?
   createdAt    DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
   @@index([groupId, createdAt])
   @@index([groupId, event])
