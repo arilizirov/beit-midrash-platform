@@ -11,14 +11,17 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth from "next-auth";
 
-import { getPrisma } from "../db";
+import { getBasePrisma, getPrisma } from "../db";
 import { canSignIn } from "./policy";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // The adapter's PrismaClient type predates driver adapters; our client is
   // structurally compatible (same delegates the adapter calls). Narrow cast —
   // `as never` would blind tsc to future adapter-contract changes.
-  adapter: PrismaAdapter(getPrisma() as unknown as Parameters<typeof PrismaAdapter>[0]),
+  // BASE (unfiltered) client on purpose: the adapter's lookups are its own
+  // contract — a filtered client would turn a soft-deleted user's sign-in
+  // into createUser → P2002 500 if it ever swapped findUnique for findFirst.
+  adapter: PrismaAdapter(getBasePrisma() as unknown as Parameters<typeof PrismaAdapter>[0]),
   session: { strategy: "database" },
   pages: { signIn: "/signin", verifyRequest: "/verify", error: "/signin" },
   providers: [
@@ -41,11 +44,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user }) {
       // Invite-only: the accept flow creates the User row first; unknown
-      // emails never get a link. findFirst on purpose — a soft-deleted row
-      // must be SEEN and rejected, not filtered away silently.
+      // emails never get a link. findUnique (email is @unique) is the
+      // documented UNFILTERED path — a soft-deleted row must be SEEN here so
+      // canSignIn rejects it, not filtered away to a null meaning "unknown".
       const email = user.email;
       if (!email) return false;
-      const existing = await getPrisma().user.findFirst({
+      const existing = await getPrisma().user.findUnique({
         where: { email },
         select: { status: true, deletedAt: true },
       });
