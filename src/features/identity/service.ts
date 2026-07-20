@@ -50,13 +50,16 @@ export async function createInvitation(
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
     });
+    // No email in metadata: ActivityLog is unerasable by design (debt-hawk,
+    // F3a) — the address stays reachable via entityId → Invitation, which
+    // the purge flow CAN scrub.
     await logActivity(tx, {
       groupId: input.groupId,
       action: "invitation.create",
       entityType: "INVITATION",
       entityId: created.id,
       actorId: input.invitedById,
-      metadata: { email, role: input.role },
+      metadata: { role: input.role },
     });
     return created;
   });

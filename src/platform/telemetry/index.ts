@@ -3,6 +3,8 @@
  * metrics). SPEC §4. Append-only is enforced by the DATABASE (no
  * UPDATE/DELETE RLS policy on either table), not by this module's manners.
  */
+import type { Prisma } from "../../../generated/prisma/client";
+
 import type { GroupTx } from "../tenancy";
 import type { PrismaClient } from "../db";
 import { withGroup } from "../tenancy";
@@ -10,7 +12,10 @@ import { withGroup } from "../tenancy";
 /**
  * Record an audited action IN THE SAME TRANSACTION as the mutation it
  * describes — an audit row that can commit without its action (or vice
- * versa) is worse than none.
+ * versa) is worse than none. groupId MUST equal the tx's tenant context or
+ * the INSERT policy aborts the whole business mutation — that's a feature.
+ * NEVER put PII in metadata: this table has NO update/delete path (only a
+ * superuser can ever scrub it); reference entityId, not personal fields.
  */
 export async function logActivity(
   tx: GroupTx,
@@ -20,7 +25,7 @@ export async function logActivity(
     entityType: string;
     entityId?: string;
     actorId?: string;
-    metadata?: Record<string, unknown>;
+    metadata?: Prisma.InputJsonObject;
   },
 ): Promise<void> {
   await tx.activityLog.create({
@@ -30,7 +35,7 @@ export async function logActivity(
       entityType: entry.entityType,
       entityId: entry.entityId,
       actorId: entry.actorId,
-      metadataJson: entry.metadata as never,
+      metadataJson: entry.metadata,
     },
   });
 }
@@ -44,7 +49,7 @@ export async function logEvent(
     userId?: string;
     entityType?: string;
     entityId?: string;
-    metadata?: Record<string, unknown>;
+    metadata?: Prisma.InputJsonObject;
   },
 ): Promise<void> {
   try {
@@ -56,7 +61,7 @@ export async function logEvent(
           userId: entry.userId,
           entityType: entry.entityType,
           entityId: entry.entityId,
-          metadataJson: entry.metadata as never,
+          metadataJson: entry.metadata,
         },
       }),
     );

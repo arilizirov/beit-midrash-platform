@@ -166,17 +166,14 @@ describe("audit trail (SPEC §4 — rides the mutation's tx)", () => {
     await completeAccept(db, {
       groupId: groupA, rawToken, userId: user!.id, userEmail: "audited@inv.local",
     });
-    const actions = await withGroup(db, groupA, (tx) =>
-      tx.activityLog.findMany({
-        where: { metadataJson: { path: ["email"], equals: "audited@inv.local" } },
-        select: { action: true },
-      }),
-    );
-    expect(actions.map((a) => a.action)).toContain("invitation.create");
+    // Audit rows reference entityId only — NO PII in the unerasable log
+    // (debt-hawk, F3a). Recover the email via entityId → Invitation.
     const all = await withGroup(db, groupA, (tx) =>
-      tx.activityLog.findMany({ select: { action: true } }),
+      tx.activityLog.findMany({ select: { action: true, metadataJson: true } }),
     );
+    expect(all.map((a) => a.action)).toContain("invitation.create");
     expect(all.map((a) => a.action)).toContain("membership.create");
+    expect(JSON.stringify(all.map((a) => a.metadataJson))).not.toContain("audited@inv.local");
   });
 });
 
