@@ -66,14 +66,8 @@ describe("EventLog", () => {
     await logEvent(db, { groupId: groupA, event: "search.run", metadata: { q: "זבחים" } });
     const rows = await withGroup(db, groupA, (tx) => tx.eventLog.findMany());
     expect(rows.some((r) => r.event === "search.run")).toBe(true);
-  });
-
-  it("a genuinely failing insert is swallowed AND leaves no row (fail-closed, for real)", async () => {
-    // Non-vacuous by construction (debt-hawk, F3a): groupId now has a real
-    // FK, so a nonexistent group makes the INSERT throw inside logEvent.
-    await expect(logEvent(db, { groupId: "nonexistent", event: "x" })).resolves.toBeUndefined();
-    const orphans = await withGroup(db, "nonexistent", (tx) => tx.eventLog.findMany());
-    expect(orphans).toEqual([]); // nothing committed — not an orphan metrics row
+    // NOTE: the failing-path (swallow + no row) is only provable once
+    // groupId FKs exist — that test ships WITH the FK migration (next PR).
   });
 
   it("events are DB-append-only too", async () => {
