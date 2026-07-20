@@ -155,3 +155,24 @@ describe("invitation flow", () => {
     expect(res.ok).toBe(false);
   });
 });
+
+describe("revoke & list (F2c-2 admin surface)", () => {
+  it("revoke kills the token; list shows pending only", async () => {
+    const { listPendingInvitations, revokeInvitation } = await import("./service");
+    const { rawToken, invitation } = await createInvitation(db, {
+      groupId: groupA, email: "revocable@inv.local", role: "MEMBER", invitedById: adminId,
+    });
+    const before = await listPendingInvitations(db, groupA);
+    expect(before.some((i) => i.id === invitation.id)).toBe(true);
+    await revokeInvitation(db, groupA, invitation.id);
+    expect(await previewInvitation(db, groupA, rawToken)).toBeNull();
+    const after = await listPendingInvitations(db, groupA);
+    expect(after.some((i) => i.id === invitation.id)).toBe(false);
+  });
+
+  it("an invitation can never grant OWNER", async () => {
+    await expect(
+      createInvitation(db, { groupId: groupA, email: "coup@inv.local", role: "OWNER", invitedById: adminId }),
+    ).rejects.toThrow(/OWNER/);
+  });
+});

@@ -9,11 +9,15 @@ export type { Role };
  * boundaries.yaml, ADR 0001). F2c-2 adds invitation.revoke + member.list
  * with the admin page that calls them.
  */
-export type Capability = "invitation.create";
+export type Capability = "invitation.create" | "invitation.revoke" | "member.list";
 
 // One shared set: SPEC §6 gives OWNER and ADMIN identical grants for every
 // capability live so far — a single constant can't drift between them.
-const ADMIN_GRANTS: ReadonlySet<Capability> = new Set(["invitation.create"]);
+const ADMIN_GRANTS: ReadonlySet<Capability> = new Set([
+  "invitation.create",
+  "invitation.revoke",
+  "member.list",
+]);
 const NONE: ReadonlySet<Capability> = new Set();
 
 const GRANTS: Record<Role, ReadonlySet<Capability>> = {
