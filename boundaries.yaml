@@ -36,6 +36,12 @@ modules:
     path: app                       # Next.js App Router: routes, server actions
     public: [index]
 
+  # ---- platform layer (SPEC §2) — live since F1 --------------------------
+  platform:
+    path: platform
+    # public surfaces grow per slice; target list in docs/ARCHITECTURE.md
+    public: [db, tenancy]
+
 # Boring, stable, imports nothing; implicitly importable by everyone.
 # ids (cuid), Result/errors, Hebrew bidi + nikud helpers, shared enums.
 shared_kernel:
@@ -49,6 +55,7 @@ shared_kernel:
 # notifications, never the reverse — so search stays a leaf, not a hub.
 allow:
   shared_kernel: []                 # imports nothing
+  platform: []                      # platform depends on no domain (ARCHITECTURE.md row)
   app: []                           # composition root; gains deps as slices land
 
 # Deep-import ban: crossing into a module is allowed only through its `public`

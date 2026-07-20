@@ -14,7 +14,8 @@ The brains hold timeless judgment; this file holds the current, project-specific
 ## Pinned at scaffold (see package-lock.json for exact truth)
 - next **16.2.10** · react/react-dom **19.2.7** · typescript **6.0.3**
 - vitest **4.1.10** · eslint **10.7.0** + typescript-eslint · dependency-cruiser **18.1.0**
-- Not yet installed (join at their slice): Prisma, Auth.js, TipTap, Tailwind, Playwright, sharp.
+- prisma / @prisma/client / @prisma/adapter-pg **7.8.0** · pg **8.22.0** — Prisma 7: no Rust engine, pg driver adapter, `prisma.config.ts`, generated client at `generated/` (gitignored; `prisma generate` in CI)
+- Not yet installed (join at their slice): Auth.js, TipTap, Tailwind, Playwright, sharp.
 
 ## Frameworks & key libraries
 - **Next.js — App Router**, React Server Components + Server Actions.
