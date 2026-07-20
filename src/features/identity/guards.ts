@@ -5,7 +5,7 @@
  */
 import { redirect } from "next/navigation";
 
-import { canSignIn } from "../../shared_kernel";
+import { canSignIn, seedGroupSlug } from "../../shared_kernel";
 
 import { auth } from "../../platform/auth";
 import { getPrisma } from "../../platform/db";
@@ -35,19 +35,29 @@ export async function requireUser() {
  * URL later (`/g/[group]`). Resolved by the SEEDED SLUG, not `findFirst` —
  * an unordered findFirst returns an arbitrary row the moment a second group
  * exists (caught by a flaky guard test, F3b), which would silently point the
- * whole app at the wrong tenant.
+ * whole app at the wrong tenant. The slug is read at call time from ONE
+ * shared definition, so the seed job and the runtime cannot disagree; if
+ * they somehow do, the error below says exactly that rather than sending the
+ * operator off to re-seed a database that is already fine.
  */
-export const SEED_GROUP_SLUG = process.env.SEED_GROUP_SLUG ?? "beit-midrash";
-
 export async function currentGroup() {
-  const group = await getPrisma().group.findFirst({
-    where: { slug: SEED_GROUP_SLUG },
+  const slug = seedGroupSlug();
+  const db = getPrisma();
+  const group = await db.group.findFirst({
+    where: { slug },
     select: { id: true, slug: true, name: true },
   });
-  if (!group) {
-    throw new Error(`no Group with slug "${SEED_GROUP_SLUG}" — run \`npm run db:seed\``);
+  if (group) return group;
+
+  const others = await db.group.findMany({ select: { slug: true }, take: 5 });
+  if (others.length > 0) {
+    throw new Error(
+      `no Group with slug "${slug}", but ${others.length} group(s) exist ` +
+        `(${others.map((o) => o.slug).join(", ")}). SEED_GROUP_SLUG disagrees ` +
+        `with the seeded data — fix the env, do NOT re-seed.`,
+    );
   }
-  return group;
+  throw new Error(`no Group with slug "${slug}" — run \`npm run db:seed\``);
 }
 
 /**

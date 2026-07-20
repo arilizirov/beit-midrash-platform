@@ -6,3 +6,4 @@
  */
 export { makeSlug } from "./slug";
 export { canSignIn, type GateUser } from "./user-gate";
+export { seedGroupSlug, DEFAULT_GROUP_SLUG } from "./group-slug";
