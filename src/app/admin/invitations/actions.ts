@@ -39,8 +39,8 @@ export async function createInvitationAction(
 }
 
 export async function revokeInvitationAction(formData: FormData): Promise<void> {
-  const { group } = await requireMembership("invitation.revoke");
+  const { user, group } = await requireMembership("invitation.revoke");
   const id = String(formData.get("id") ?? "");
-  if (id) await revokeInvitation(getPrisma(), group.id, id);
+  if (id) await revokeInvitation(getPrisma(), group.id, id, user.id);
   revalidatePath("/admin/invitations");
 }

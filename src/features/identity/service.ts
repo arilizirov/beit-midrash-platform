@@ -2,6 +2,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { PrismaClient } from "../../platform/db";
+import { logActivity } from "../../platform/telemetry";
 import { withGroup } from "../../platform/tenancy";
 
 import { can, normalizeEmail, type Capability, type Role } from "./model";
@@ -39,7 +40,7 @@ export async function createInvitation(
       where: { groupId: input.groupId, email, acceptedAt: null, deletedAt: null },
       data: { deletedAt: new Date() },
     });
-    return tx.invitation.create({
+    const created = await tx.invitation.create({
       data: {
         groupId: input.groupId,
         email,
@@ -49,6 +50,15 @@ export async function createInvitation(
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
     });
+    await logActivity(tx, {
+      groupId: input.groupId,
+      action: "invitation.create",
+      entityType: "INVITATION",
+      entityId: created.id,
+      actorId: input.invitedById,
+      metadata: { email, role: input.role },
+    });
+    return created;
   });
   return { rawToken, invitation };
 }
@@ -65,13 +75,28 @@ export async function listPendingInvitations(db: PrismaClient, groupId: string) 
 }
 
 /** Revoke = soft-delete; the token dies immediately (preview returns null). */
-export async function revokeInvitation(db: PrismaClient, groupId: string, invitationId: string) {
-  return withGroup(db, groupId, (tx) =>
-    tx.invitation.updateMany({
+export async function revokeInvitation(
+  db: PrismaClient,
+  groupId: string,
+  invitationId: string,
+  actorId?: string,
+) {
+  return withGroup(db, groupId, async (tx) => {
+    const res = await tx.invitation.updateMany({
       where: { id: invitationId, acceptedAt: null, deletedAt: null },
       data: { deletedAt: new Date() },
-    }),
-  );
+    });
+    if (res.count > 0) {
+      await logActivity(tx, {
+        groupId,
+        action: "invitation.revoke",
+        entityType: "INVITATION",
+        entityId: invitationId,
+        actorId,
+      });
+    }
+    return res;
+  });
 }
 
 /** A pending, unexpired invitation matching this token — or null. */
@@ -143,7 +168,7 @@ export async function completeAccept(
         where: { userId: input.userId, groupId: input.groupId, deletedAt: null },
       });
       if (existing) return { ok: false, reason: "already_member" };
-      await tx.membership.create({
+      const membership = await tx.membership.create({
         data: {
           userId: input.userId,
           groupId: input.groupId,
@@ -153,6 +178,14 @@ export async function completeAccept(
         },
       });
       await tx.invitation.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+      await logActivity(tx, {
+        groupId: input.groupId,
+        action: "membership.create",
+        entityType: "MEMBERSHIP",
+        entityId: membership.id,
+        actorId: input.userId,
+        metadata: { via: "invitation", role: invite.role },
+      });
       return { ok: true };
     });
   } catch (e) {
