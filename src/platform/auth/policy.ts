@@ -11,15 +11,12 @@ export type GateUser = {
   deletedAt: Date | null;
 } | null;
 
-/** May this email start a magic-link sign-in? */
+/**
+ * May this email start a magic-link sign-in?
+ * F2c's requireUser MUST apply this same rule per-request (session
+ * continuation), so suspending or soft-deleting a user revokes access on
+ * their next request — Session rows cascade only on HARD delete.
+ */
 export function canSignIn(user: GateUser): boolean {
   return user !== null && user.status === "ACTIVE" && user.deletedAt === null;
 }
-
-/**
- * May an EXISTING session keep operating? Same rule — used by the request
- * guards (F2c requireUser) so suspending or soft-deleting a user revokes
- * access on their next request, not just at next login. (Session rows
- * cascade only on HARD delete — this check is the soft-delete coupling.)
- */
-export const canUseSession = canSignIn;

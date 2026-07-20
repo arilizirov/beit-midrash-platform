@@ -1,3 +1,4 @@
+import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { signIn } from "@/platform/auth";
@@ -17,9 +18,14 @@ export default async function SignInPage(props: {
     const email = String(formData.get("email") ?? "").trim();
     if (!email) return;
     try {
-      await signIn("nodemailer", { email, redirect: false });
-    } catch {
-      // AccessDenied etc. — swallowed on purpose: same UX for every input.
+      await signIn("email", { email, redirect: false });
+    } catch (err) {
+      // Uniform UX for every input (no enumeration) — but real infra
+      // failures must not vanish: an invited user whose email silently
+      // failed to send is an unobservable outage.
+      if (!(err instanceof AuthError) || err.type !== "AccessDenied") {
+        console.error("[signin] delivery error:", err);
+      }
     }
     redirect("/verify");
   }

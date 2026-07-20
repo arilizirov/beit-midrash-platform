@@ -1,39 +1,42 @@
 /**
  * Auth.js (NextAuth v5) — self-hosted, invite-only, magic-link primary
  * (SPEC §2/§6). Database sessions via the Prisma adapter.
+ *
+ * No nodemailer: it carries unfixed high-severity advisories (SMTP/CRLF
+ * injection — npm audit blocks it) and V1 doesn't need SMTP yet. The
+ * provider below console-logs the link in dev and REFUSES to run in
+ * production until a real sender is wired (deploy-gate; owner decision:
+ * Resend-style API vs SMTP relay — see STACK.md).
  */
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth from "next-auth";
-import Nodemailer from "next-auth/providers/nodemailer";
 
 import { getPrisma } from "../db";
 import { canSignIn } from "./policy";
 
-const emailServer = process.env.EMAIL_SERVER;
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // The adapter's PrismaClient type predates driver adapters; our client is
-  // structurally compatible (same delegates the adapter calls).
-  adapter: PrismaAdapter(getPrisma() as never),
+  // structurally compatible (same delegates the adapter calls). Narrow cast —
+  // `as never` would blind tsc to future adapter-contract changes.
+  adapter: PrismaAdapter(getPrisma() as unknown as Parameters<typeof PrismaAdapter>[0]),
   session: { strategy: "database" },
   pages: { signIn: "/signin", verifyRequest: "/verify", error: "/signin" },
   providers: [
-    Nodemailer({
-      server: emailServer ?? { jsonTransport: true },
+    {
+      id: "email",
+      type: "email",
+      name: "דוא״ל",
       from: process.env.EMAIL_FROM ?? "beit-midrash@localhost",
-      ...(emailServer
-        ? {}
-        : {
-            // Dev fallback (no EMAIL_SERVER): print the magic link instead of
-            // sending. Refuses to run in production — fail closed, not open.
-            sendVerificationRequest: async ({ identifier, url }) => {
-              if (process.env.NODE_ENV === "production") {
-                throw new Error("EMAIL_SERVER is required in production");
-              }
-              console.log(`[dev magic-link] ${identifier} → ${url}`);
-            },
-          }),
-    }),
+      maxAge: 24 * 60 * 60,
+      options: {},
+      async sendVerificationRequest({ identifier, url }) {
+        if (process.env.NODE_ENV === "production") {
+          // Fail closed: no silent no-op that looks like a sent email.
+          throw new Error("Email delivery is not configured (deploy gate — see STACK.md)");
+        }
+        console.log(`[dev magic-link] ${identifier} → ${url}`);
+      },
+    },
   ],
   callbacks: {
     async signIn({ user }) {

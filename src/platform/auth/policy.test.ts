@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canSignIn, canUseSession } from "./policy";
+import { canSignIn } from "./policy";
 
 const active = { status: "ACTIVE", deletedAt: null } as const;
 
@@ -19,14 +19,8 @@ describe("canSignIn (invite-only gate)", () => {
   });
 
   it("denies a soft-deleted user even if status still reads ACTIVE", () => {
+    // Doubles as the F2c per-request continuation rule: soft-delete must
+    // revoke live sessions at next request, not just at next login.
     expect(canSignIn({ status: "ACTIVE", deletedAt: new Date() })).toBe(false);
-  });
-});
-
-describe("canUseSession (per-request revocation)", () => {
-  it("is the same rule — soft-deleting a user kills their live sessions at next request", () => {
-    expect(canUseSession(active)).toBe(true);
-    expect(canUseSession({ status: "ACTIVE", deletedAt: new Date() })).toBe(false);
-    expect(canUseSession(null)).toBe(false);
   });
 });

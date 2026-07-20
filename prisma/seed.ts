@@ -13,7 +13,11 @@ async function main() {
   }
   const url = process.env.DATABASE_URL;
   const slug = process.env.SEED_GROUP_SLUG ?? "beit-midrash";
-  const ownerEmail = process.env.SEED_OWNER_EMAIL;
+  // Auth.js lowercases+trims the sign-in identifier before it ever reaches
+  // us; User.email is case-sensitive unique. Normalize here or a mixed-case
+  // seed email locks the owner out of a fresh deploy. (F2c accept flow must
+  // normalize the same way.)
+  const ownerEmail = process.env.SEED_OWNER_EMAIL?.trim().toLowerCase();
   if (!url) throw new Error("DATABASE_URL is not set");
   if (!ownerEmail) throw new Error("SEED_OWNER_EMAIL is not set (the first OWNER's email)");
 
@@ -23,9 +27,11 @@ async function main() {
     update: {},
     create: { slug, name: process.env.SEED_GROUP_NAME ?? "בית המדרש" },
   });
+  // Re-seeding an existing owner REACTIVATES them (an "idempotent bootstrap"
+  // that silently keeps the owner locked out would be a lie).
   const owner = await db.user.upsert({
     where: { email: ownerEmail },
-    update: {},
+    update: { status: "ACTIVE", deletedAt: null },
     create: { email: ownerEmail, status: "ACTIVE" },
   });
   const existing = await db.membership.findFirst({
@@ -40,4 +46,7 @@ async function main() {
   await db.$disconnect();
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
