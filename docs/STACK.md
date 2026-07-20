@@ -14,7 +14,8 @@ The brains hold timeless judgment; this file holds the current, project-specific
 ## Pinned at scaffold (see package-lock.json for exact truth)
 - next **16.2.10** · react/react-dom **19.2.7** · typescript **6.0.3**
 - vitest **4.1.10** · eslint **10.7.0** + typescript-eslint · dependency-cruiser **18.1.0**
-- Not yet installed (join at their slice): Prisma, Auth.js, TipTap, Tailwind, Playwright, sharp.
+- prisma / @prisma/client / @prisma/adapter-pg **7.8.0** · pg **8.22.0** — Prisma 7: no Rust engine, pg driver adapter, `prisma.config.ts`, generated client at `generated/` (gitignored; `prisma generate` in CI)
+- Not yet installed (join at their slice): Auth.js, TipTap, Tailwind, Playwright, sharp.
 
 ## Frameworks & key libraries
 - **Next.js — App Router**, React Server Components + Server Actions.
@@ -56,6 +57,12 @@ The brains hold timeless judgment; this file holds the current, project-specific
   `src/platform`; design system at `src/components/ui`.
 
 ## Known danger zones
+- **RLS binds neither superusers nor (without FORCE) table owners.** The app and
+  its tests must always connect as a non-superuser role — locally/CI the test
+  suite provisions `learntorah_app` and asserts it; **on Neon, provisioning the
+  non-superuser app role is a deploy-runbook gate** before anything user-facing
+  ships. The catalog-scan test in `rls.test.ts` fails any future `groupId` table
+  that ships without ENABLE+FORCE+policy.
 - **Generated-column search** — the `IMMUTABLE`/`STABLE` trap above is a compile-time footgun; touch `bm_normalize` only with a migration + test.
 - **Hebrew FTS quality** — Postgres has no Hebrew stemmer. SPEC §8 sets a measured exit criterion (≥50 real items, morphological queries, <80% ⇒ Meilisearch enters V1 behind the SearchService seam). Measure, don't assume.
 - **Polymorphic tables** (SourceCitation, Attachment, InternalLink, Revision, Follow, Reaction, Notification) carry no DB FK on `entityId`; integrity depends on soft-delete-only + transactional cascade + the orphan sweep. Use the single `resolveEntity()` helper — never a bespoke switch at each call site.

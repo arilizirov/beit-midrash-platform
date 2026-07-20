@@ -4,11 +4,12 @@ Project: **LearnTorah — בית המדרש הדיגיטלי**. Spec: [`docs/SPE
 The auditor reads THIS first. `boundaries.yaml` + the import graph are ground
 truth for connections; this file adds the human-readable "why".
 
-> STATUS: walking skeleton. **Live modules: `app`, `shared_kernel`** (Next.js
-> shell + slug kernel, tested). All other modules are declared policy — the
-> target map lives as a comment block in `boundaries.yaml` and each module goes
-> live when its slice is stamped with `python bigbrainGenerator/new_domain.py
-> <name>` and registered there.
+> STATUS: Foundation in progress. **Live modules: `app`, `shared_kernel`,
+> `platform` (db + tenancy)** — Prisma 7 tenancy core (Group/User/Membership),
+> Postgres RLS on Membership with the SPEC §10.1 cross-tenant must-fail suite
+> (verified falsifiable: dropping the policy fails 5 tests). Remaining modules
+> go live when their slice is stamped with `python bigbrainGenerator/new_domain.py
+> <name>` and registered in `boundaries.yaml`.
 
 ## Modules
 
