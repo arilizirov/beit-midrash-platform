@@ -92,8 +92,32 @@ describe("RLS tenant isolation (Membership)", () => {
     ).rejects.toThrow(/row-level security/i);
   });
 
+  it("cross-tenant DELETE affects zero rows", async () => {
+    const res = await withGroup(db, groupA, (tx) =>
+      tx.membership.deleteMany({ where: { id: memberB } }),
+    );
+    expect(res.count).toBe(0);
+  });
+
   it("no tenant context ⇒ nothing visible, nothing deletable (fail-closed)", async () => {
     expect(await db.membership.findMany()).toEqual([]);
     expect((await db.membership.deleteMany()).count).toBe(0);
+  });
+
+  // Auditor (F1): nothing mechanical forces future groupId tables to enroll in
+  // RLS — so THIS does. Any table carrying groupId that lacks ENABLE+FORCE+a
+  // policy turns this red the moment its migration lands.
+  it("every table carrying groupId is enrolled in FORCED RLS with ≥1 policy", async () => {
+    const offenders = await db.$queryRaw<{ table_name: string }[]>`
+      SELECT c.table_name
+      FROM information_schema.columns c
+      JOIN pg_class pc ON pc.relname = c.table_name
+      JOIN pg_namespace n ON n.oid = pc.relnamespace AND n.nspname = 'public'
+      LEFT JOIN pg_policy pol ON pol.polrelid = pc.oid
+      WHERE c.table_schema = 'public' AND c.column_name = 'groupId'
+      GROUP BY c.table_name, pc.relrowsecurity, pc.relforcerowsecurity
+      HAVING NOT (pc.relrowsecurity AND pc.relforcerowsecurity)
+          OR count(pol.oid) = 0`;
+    expect(offenders).toEqual([]);
   });
 });

@@ -81,6 +81,11 @@ model Membership {
   user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
   group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
+  // OWNER DECISION for F2 (flagged by review): SPEC §4 says @@unique([userId,
+  // groupId]) verbatim, but with soft-delete a member who leaves and is
+  // re-invited collides with their own deletedAt row. Likely fix: partial
+  // unique WHERE "deletedAt" IS NULL — needs a spec ruling before the invite
+  // flow lands.
   @@unique([userId, groupId])
   @@index([groupId, role])
 }

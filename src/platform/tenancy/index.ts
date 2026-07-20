@@ -7,10 +7,12 @@
  * compare each row's groupId to this setting; with no context set they
  * evaluate NULL and expose nothing — fail-closed by construction.
  */
+import type { Prisma } from "../../../generated/prisma/client";
+
 import type { PrismaClient } from "../db";
 
 /** The transaction handle passed to `withGroup` callbacks. */
-export type GroupTx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
+export type GroupTx = Prisma.TransactionClient;
 
 export async function withGroup<T>(
   client: PrismaClient,

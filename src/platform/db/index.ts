@@ -1,5 +1,5 @@
 /**
- * platform/db — the Prisma client singleton (public surface of the db seam).
+ * platform/db — the Prisma client factory + lazy app singleton.
  *
  * Prisma 7: no Rust engine; connections go through the pg driver adapter.
  * The connection role must be a NON-superuser in every environment — RLS
@@ -10,22 +10,24 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../../../generated/prisma/client";
 
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
-}
-
 export function createClient(connectionString: string): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
-// Next.js dev hot-reload spawns many module instances; keep one client.
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+// Lazy on purpose (debt-hawk, F1): an eager module-level singleton would (a)
+// demand DATABASE_URL from every importer — the RLS tests import only
+// createClient and connect as the app role — and (b) instantiate an unused,
+// possibly-superuser client inside the test process. Next.js dev hot-reload
+// still gets exactly one client via globalThis.
+const g = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? createClient(required("DATABASE_URL"));
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export function getPrisma(): PrismaClient {
+  if (!g.prisma) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error("DATABASE_URL is not set");
+    g.prisma = createClient(url);
+  }
+  return g.prisma;
+}
 
 export type { PrismaClient };
