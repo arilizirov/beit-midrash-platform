@@ -31,10 +31,22 @@ describe("makeSlug", () => {
     expect(makeSlug("!!!", "clx3ke")).toBe("clx3ke");
   });
 
-  it("caps very long titles without splitting a word mid-way", () => {
+  it("treats maqaf (־) as a word separator, not a letter to swallow", () => {
+    // debt-hawk finding: U+0591–U+05C7 includes maqaf; על־פי must not become עלפי.
+    expect(makeSlug("על־פי המדרש", "clx3kg")).toBe("clx3kg-על-פי-המדרש");
+  });
+
+  it("drops gershayim inside Hebrew numerals without splitting them", () => {
+    expect(makeSlug("זבחים דף י״ט", "clx3kh")).toBe("clx3kh-זבחים-דף-יט");
+  });
+
+  it("caps very long titles on a word boundary", () => {
     const title = "דיון ארוך מאוד ".repeat(20);
     const slug = makeSlug(title, "clx3kf");
     expect(slug.length).toBeLessThanOrEqual(80);
-    expect(slug.endsWith("-")).toBe(false);
+    // every dash-separated token after the prefix must be a complete input word
+    const [prefix, ...words] = slug.split("-");
+    expect(prefix).toBe("clx3kf");
+    for (const w of words) expect(["דיון", "ארוך", "מאוד"]).toContain(w);
   });
 });

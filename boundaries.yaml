@@ -24,29 +24,12 @@ layout: features
 
 # LIVE MODULES ONLY. The boundary check over paths that match no files passes
 # vacuously, so a module enters this block the moment its slice stamps real
-# folders (the generator registers it) — never before.
+# folders — never before. (ADR: docs/adr/0001-boundaries-live-modules-only.md)
 #
-# TARGET POLICY (the full map, activated slice by slice; keep in sync with
-# docs/ARCHITECTURE.md):
-#   platform  path: platform  public: [db, auth, storage, jobs, tenancy, telemetry]
-#   ui        path: components/ui
-#   identity      features/identity      Group, User, Membership, Invitation, can()/RBAC
-#   taxonomy      features/taxonomy      Topic, Category, Tag (+ per-type tag joins)
-#   discussions   features/discussions   Discussion, Contribution, Comment, Summary
-#   content       features/content       Article, Note, TableBlock, Revision
-#   sources       features/sources       Source, SourceCitation, SourceRefService
-#   files         features/files         Attachment + presigned R2 flow
-#   search        features/search        SearchService (leaf; domains push into it)
-#   feed          features/feed          NewsPost (חדשות)
-#   notifications features/notifications Notification, Follow, Reaction (leaf)
-#   dashboard     features/dashboard     Widget, UserWidgetPref
-#   editor        features/editor        the 4 TipTap nodes (SPEC §7)
-#   allow (target): identity[platform,ui] · taxonomy[platform,ui,identity,search]
-#     discussions[platform,ui,identity,taxonomy,search,notifications]
-#     content[platform,ui,identity,taxonomy,search] · sources[platform,ui,identity,search]
-#     files[platform,ui,identity] · search[platform] · feed[platform,ui,identity,search]
-#     notifications[platform,ui,identity] · dashboard[platform,ui,identity]
-#     editor[platform,ui,content,sources,files] · app[everything]
+# The TARGET module map (all planned modules + their allowed dependencies) has
+# ONE home: docs/ARCHITECTURE.md. When a slice re-declares a module here, copy
+# its allow-list from that table exactly — and reviewers diff against it,
+# because over-granting is not mechanically caught until then.
 modules:
   # ---- composition root --------------------------------------------------
   app:

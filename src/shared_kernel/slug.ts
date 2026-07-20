@@ -7,16 +7,26 @@
  * Next.js route matching handle percent-encoded UTF-8 transparently.
  */
 
+// Cosmetic cap in UTF-16 code units (~160 UTF-8 bytes for all-Hebrew titles).
+// Uniqueness never depends on it — the id prefix does that; this only keeps
+// URLs readable. Revisit against real constraints when the first caller
+// (taxonomy slice) lands.
 const MAX_SLUG_LENGTH = 80;
 
-/** Strip Hebrew nikud + cantillation so visually-identical titles slug identically. */
-function stripNikud(text: string): string {
-  // U+0591–U+05C7 covers te'amim and nikud; the letters themselves are U+05D0+.
-  return text.replace(/[֑-ׇ]/g, "");
+/**
+ * Strip marks that decorate letters without being letters:
+ * - \p{Mn} = all combining marks — nikud, dagesh, meteg, and te'amim
+ * - geresh/gershayim (׳ ״, U+05F3/U+05F4) — word-internal in Hebrew numerals
+ *   like י״ט, which must stay one word, not split
+ * Punctuation that *separates* words (maqaf ־, paseq, sof-pasuq) is deliberately
+ * NOT stripped here — the separator split below handles it.
+ */
+function stripMarks(text: string): string {
+  return text.replace(/[\p{Mn}׳״]/gu, "");
 }
 
 export function makeSlug(title: string, idPrefix: string): string {
-  const words = stripNikud(title)
+  const words = stripMarks(title)
     .toLowerCase()
     // Keep Hebrew letters, Latin letters, and digits; everything else separates.
     .split(/[^א-תa-z0-9]+/u)
