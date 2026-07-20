@@ -1,6 +1,7 @@
 # Secrets — never commit these
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 secrets.json
@@ -29,4 +30,3 @@ __pycache__/
 
 # Prisma 7 generated client (rebuilt via `prisma generate`)
 generated/
-!.env.example

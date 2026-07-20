@@ -6,6 +6,12 @@
 export const APP_ROLE = "learntorah_app";
 export const APP_ROLE_PASSWORD = process.env.APP_DB_PASSWORD ?? "localdev"; // local/CI only — never a production credential
 
+// The password lands in BOTH a SQL literal (global-setup) and a URL — reserved
+// characters would make the two disagree or break the DDL (debt-hawk, F1).
+if (!/^[A-Za-z0-9_]+$/.test(APP_ROLE_PASSWORD)) {
+  throw new Error("APP_DB_PASSWORD must match [A-Za-z0-9_]+ (test-only credential)");
+}
+
 export function adminUrl(): string {
   try {
     process.loadEnvFile();

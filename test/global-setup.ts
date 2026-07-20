@@ -34,8 +34,15 @@ export default async function setup(): Promise<void> {
     await admin.query(`ALTER ROLE ${APP_ROLE} WITH LOGIN PASSWORD '${APP_ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS`);
     await admin.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
     await admin.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`);
-    // deterministic reruns
-    await admin.query(`TRUNCATE "Membership", "Group", "User" CASCADE`);
+    // Deterministic reruns. Dynamic on purpose (debt-hawk, F1): a hardcoded
+    // table list silently goes stale as every future slice adds entities.
+    const { rows } = await admin.query<{ tablename: string }>(
+      `SELECT tablename FROM pg_tables
+       WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`,
+    );
+    if (rows.length > 0) {
+      await admin.query(`TRUNCATE ${rows.map((r) => `"${r.tablename}"`).join(", ")} CASCADE`);
+    }
   } finally {
     await admin.end();
   }
