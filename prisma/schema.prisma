@@ -44,6 +44,31 @@ model Group {
   deletedAt    DateTime?
 
   memberships Membership[]
+  invitations Invitation[]
+}
+
+/// Invite-only onboarding (SPEC §4). Token stored HASHED, single-use; the
+/// invite URL carries groupId + raw token, so accept runs inside withGroup —
+/// RLS applies to this table like any other groupId row (no bypass needed).
+/// Uniqueness = "one PENDING invitation per (group, email)": partial unique
+/// WHERE "acceptedAt" IS NULL AND "deletedAt" IS NULL, in the migration.
+model Invitation {
+  id          String    @id @default(cuid())
+  groupId     String
+  email       String
+  role        Role
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  invitedBy User  @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([groupId, email])
 }
 
 /// Global identity — deliberately NOT group-scoped (SPEC §4).
@@ -61,7 +86,52 @@ model User {
   updatedAt     DateTime   @updatedAt
   deletedAt     DateTime?
 
-  memberships Membership[]
+  memberships     Membership[]
+  accounts        Account[]
+  sessions        Session[]
+  invitationsSent Invitation[] @relation("InvitationsSent")
+}
+
+/// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
+/// group-scoped, NOT RLS-bound (they carry no groupId). Field shapes are the
+/// adapter's contract — do not rename.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 /// The User×Group×Role hinge — all RBAC hangs on it (SPEC §4).
@@ -81,11 +151,11 @@ model Membership {
   user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
   group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
-  // OWNER DECISION for F2 (flagged by review): SPEC §4 says @@unique([userId,
-  // groupId]) verbatim, but with soft-delete a member who leaves and is
-  // re-invited collides with their own deletedAt row. Likely fix: partial
-  // unique WHERE "deletedAt" IS NULL — needs a spec ruling before the invite
-  // flow lands.
-  @@unique([userId, groupId])
+  // Uniqueness = "one ACTIVE membership per user per group" (ADR 0002, owner-
+  // approved deviation from SPEC §4's absolute unique): a partial unique index
+  // WHERE "deletedAt" IS NULL lives in migration `identity_schema` — Prisma
+  // cannot express partial uniques, so it is deliberately NOT declared here.
+  // Soft-deleted rows are history and may repeat.
+  @@index([userId, groupId])
   @@index([groupId, role])
 }
