@@ -34,8 +34,8 @@ rather than trust any frozen text — this file or a book.
 ## Folder layout
 - This project's domain folder convention (`domains` vs `features`) is declared
   in `boundaries.yaml` (`layout:`), and the generator honors it. Create domains
-  with the generator — do NOT instruct the agent here to hand-roll folders or
-  bypass the generator; that contradicts `AGENTS.md` and skill-lint will flag it.
+  with the generator (see `AGENTS.md`); this file only records WHICH layout and
+  paths the generator uses, never process overrides — skill-lint enforces that.
 - Rule of thumb: STACK.md holds **parameters** (which layout, which versions,
   which libraries); `AGENTS.md` and the brains hold the **principles** (use the
   generator, TDD, vertical slices). Keep that line clean and the files won't fight.

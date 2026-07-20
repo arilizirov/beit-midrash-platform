@@ -128,7 +128,10 @@ def lint_global(root: Path) -> None:
             "never by hand" in ag or "never hand" in ag or "scaffold structure with the generator" in ag
         )
         anti_generator = re.search(
-            r"hand-?roll|don't use the generator|do not use the generator|"
+            # "hand-roll" alone false-positives on unrelated prose (e.g. "a
+            # hand-rolled switch statement") — require folder/scaffold context.
+            r"hand-?roll(?:ed|ing|s)?\s+(?:the\s+)?(?:folders?|domains?|modules?|structure|scaffold\w*|skeletons?)|"
+            r"don't use the generator|do not use the generator|"
             r"instead of the generator|bypass(?:ing)? the generator|without the generator",
             st,
         )

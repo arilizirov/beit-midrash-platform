@@ -24,4 +24,12 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
+# Pre-scaffold repos have no language yet; the check exits non-zero on
+# "no language detected", which would block EVERY commit. Skip until a
+# manifest exists (CI still enforces once code lands).
+if [ ! -f package.json ] && [ ! -f pyproject.toml ]; then
+  echo "pre-commit: no package.json/pyproject.toml yet; skipping boundary check" >&2
+  exit 0
+fi
+
 python3 bigbrainBoundaryGuard/check_boundaries.py check
