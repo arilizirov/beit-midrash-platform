@@ -31,6 +31,9 @@ layout: features
 # its allow-list from that table exactly — and reviewers diff against it,
 # because over-granting is not mechanically caught until then.
 modules:
+  taxonomy:
+    path: features/taxonomy
+    public: [index]
   identity:
     path: features/identity
     public: [index]
@@ -57,6 +60,7 @@ shared_kernel:
 # it. Indexing and notifying are PUSH-based — a domain calls search/
 # notifications, never the reverse — so search stays a leaf, not a hub.
 allow:
+  taxonomy: [platform]
   identity: [platform]
   shared_kernel: []                 # imports nothing
   platform: []                      # platform depends on no domain (ARCHITECTURE.md row)

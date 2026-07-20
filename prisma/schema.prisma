@@ -48,6 +48,90 @@ model Group {
   revisions    Revision[]
   activityLogs ActivityLog[]
   eventLogs    EventLog[]
+  categories   Category[]
+  topics       Topic[]
+  tags         Tag[]
+}
+
+enum TopicStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Taxonomy (SPEC §4). Self-tree; max depth enforced in the app.
+model Category {
+  id        String    @id @default(cuid())
+  groupId   String
+  name      String
+  slug      String
+  parentId  String?
+  position  Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group    Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  topics   Topic[]
+
+  @@unique([groupId, slug])
+  @@index([groupId, parentId, position])
+}
+
+/// The organizing spine of the whole content graph (SPEC §4).
+model Topic {
+  id          String      @id @default(cuid())
+  groupId     String
+  title       String
+  slug        String
+  description String?
+  categoryId  String?
+  status      TopicStatus @default(DRAFT)
+  authorId    String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  author   User      @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  tags     TopicTag[]
+
+  @@unique([groupId, slug])
+  @@index([groupId, status, updatedAt])
+  @@index([groupId, categoryId])
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  groupId   String
+  name      String
+  slug      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group  Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  topics TopicTag[]
+
+  @@unique([groupId, slug])
+}
+
+/// SPEC §4 canonical: per-type join tables with REAL FKs — deliberately not
+/// a polymorphic ContentTag (the tag target set is small and stable, so
+/// integrity is worth more than uniformity here).
+model TopicTag {
+  topicId String
+  tagId   String
+  groupId String
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([topicId, tagId])
+  @@index([groupId, tagId])
 }
 
 /// SPEC §4 cross-cutting: closed set of revision-bearing entities.
@@ -175,6 +259,7 @@ model User {
   accounts        Account[]
   sessions        Session[]
   invitationsSent Invitation[] @relation("InvitationsSent")
+  topicsAuthored  Topic[]      @relation("TopicsAuthored")
 }
 
 /// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
