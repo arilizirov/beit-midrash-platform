@@ -1,6 +1,7 @@
 # Secrets — never commit these
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 secrets.json
@@ -26,3 +27,6 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Prisma 7 generated client (rebuilt via `prisma generate`)
+generated/

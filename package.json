@@ -2,7 +2,7 @@
   "name": "learntorah",
   "version": "0.1.0",
   "private": true,
-  "description": "LearnTorah — בית המדרש הדיגיטלי. Hebrew-first digital Beit Midrash.",
+  "description": "LearnTorah \u2014 \u05d1\u05d9\u05ea \u05d4\u05de\u05d3\u05e8\u05e9 \u05d4\u05d3\u05d9\u05d2\u05d9\u05d8\u05dc\u05d9. Hebrew-first digital Beit Midrash.",
   "engines": {
     "node": ">=22.12"
   },
@@ -11,20 +11,25 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
+    "lint": "eslint src test *.ts",
     "test": "vitest run"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "dependency-cruiser": "^18.1.0",
     "eslint": "^10.7.0",
+    "pg": "^8.22.0",
+    "prisma": "^7.8.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.10"
