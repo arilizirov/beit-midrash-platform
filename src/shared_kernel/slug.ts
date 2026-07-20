@@ -2,7 +2,8 @@
  * shared_kernel/slug — URL slugs for Hebrew-first content (SPEC §5).
  *
  * A slug is `<idPrefix>-<title-words>`: the stable short id prefix (from the
- * entity's cuid) guarantees uniqueness, so the title part is purely cosmetic
+ * entity's cuid) makes collisions rare — NOT impossible, and there is no
+ * retry today (ADR 0003) — so the title part is purely cosmetic
  * and safe to regenerate. Hebrew letters are kept as-is — modern browsers and
  * Next.js route matching handle percent-encoded UTF-8 transparently.
  */
