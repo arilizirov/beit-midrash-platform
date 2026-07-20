@@ -8,7 +8,7 @@ The brains hold timeless judgment; this file holds the current, project-specific
 > time-sensitive, fetch live docs at task time and name the source.
 
 ## Languages & runtimes
-- TypeScript **6.0.x** (strict). Node **>=20** (CI runs 20; local dev on 24).
+- TypeScript **6.0.x** (strict). Node **>=22.12** (floor set by dependency-cruiser 18's `commander@15`; CI and local dev run 24).
 - Python is present only for the bigbrain kit's own tooling (verify, boundaries, tests) — not app code.
 
 ## Pinned at scaffold (see package-lock.json for exact truth)
