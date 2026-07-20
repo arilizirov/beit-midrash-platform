@@ -73,24 +73,6 @@ export async function listTopics(
   );
 }
 
-export async function getTopicBySlug(db: PrismaClient, groupId: string, slug: string) {
-  return withGroup(db, groupId, (tx) =>
-    tx.topic.findFirst({
-      where: { slug },
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        description: true,
-        status: true,
-        categoryId: true,
-        authorId: true,
-        updatedAt: true,
-      },
-    }),
-  );
-}
-
 export async function createCategory(
   db: PrismaClient,
   input: {
@@ -133,6 +115,8 @@ export async function createCategory(
         name: input.name,
         slug: makeSlug(input.name, idPrefix(id)),
         parentId: input.parentId,
+        // YAGNI: position is stored but unread until the category-tree UI
+        // needs ordering — the column is SPEC §4, the reader is not here yet.
         position: input.position ?? 0,
       },
     });
@@ -145,15 +129,6 @@ export async function createCategory(
     });
     return category;
   });
-}
-
-export async function listCategories(db: PrismaClient, groupId: string) {
-  return withGroup(db, groupId, (tx) =>
-    tx.category.findMany({
-      orderBy: [{ parentId: "asc" }, { position: "asc" }],
-      select: { id: true, name: true, slug: true, parentId: true, position: true },
-    }),
-  );
 }
 
 export async function createTag(

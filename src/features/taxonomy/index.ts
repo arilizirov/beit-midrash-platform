@@ -5,8 +5,6 @@ export {
   createCategory,
   createTag,
   createTopic,
-  getTopicBySlug,
-  listCategories,
   listTopics,
   removeTagFromTopic,
   MAX_CATEGORY_DEPTH,
