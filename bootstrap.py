@@ -137,7 +137,9 @@ def try_branch_protection(branch: str) -> bool:
     payload = {
         "required_status_checks": {"strict": True, "contexts": ["boundaries", "verify", "pr-size"]},
         "enforce_admins": True,
-        "required_pull_request_reviews": {"required_approving_review_count": 1},
+        # 0, not 1: a solo owner cannot approve their own PR — a count of 1
+        # deadlocks merging forever. Raise it once a second human reviewer exists.
+        "required_pull_request_reviews": {"required_approving_review_count": 0},
         "restrictions": None,
         "allow_force_pushes": False,
         "allow_deletions": False,
