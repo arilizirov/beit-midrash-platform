@@ -40,7 +40,7 @@ modules:
   platform:
     path: platform
     # public surfaces grow per slice; target list in docs/ARCHITECTURE.md
-    public: [db, tenancy]
+    public: [db, tenancy, auth]
 
 # Boring, stable, imports nothing; implicitly importable by everyone.
 # ids (cuid), Result/errors, Hebrew bidi + nikud helpers, shared enums.
@@ -56,7 +56,7 @@ shared_kernel:
 allow:
   shared_kernel: []                 # imports nothing
   platform: []                      # platform depends on no domain (ARCHITECTURE.md row)
-  app: []                           # composition root; gains deps as slices land
+  app: [platform]                   # composition root (ARCHITECTURE row: all domains + platform)
 
 # Deep-import ban: crossing into a module is allowed only through its `public`
 # entries — never into its internal files. This is what keeps a boundary real.
