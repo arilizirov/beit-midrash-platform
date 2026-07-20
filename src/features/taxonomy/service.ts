@@ -4,10 +4,7 @@ import { logActivity } from "../../platform/telemetry";
 import { withGroup } from "../../platform/tenancy";
 import { idPrefix, makeSlug, newId } from "../../shared_kernel";
 
-import { assertDepthAllowed, MAX_CATEGORY_DEPTH, type TopicStatus } from "./model";
-
-export { MAX_CATEGORY_DEPTH };
-export type { TopicStatus };
+import { assertDepthAllowed, type TopicStatus } from "./model";
 
 /**
  * AUTHZ IS THE CALLER'S JOB throughout this module: server actions gate on
@@ -80,7 +77,7 @@ export async function createCategory(
     name: string;
     parentId?: string;
     position?: number;
-    actorId?: string;
+    actorId: string;
   },
 ) {
   const id = newId();
@@ -90,23 +87,20 @@ export async function createCategory(
       // already makes a cross-group parent impossible; this lookup turns a
       // missing parent into a clear domain error instead of a raw FK
       // violation, and supplies the chain the depth rule needs.
-      const ancestors: { id: string }[] = [];
-      let cursor: string | undefined = input.parentId;
-      while (cursor) {
-        const node: { id: string; parentId: string | null } | null =
-          await tx.category.findFirst({
-            where: { id: cursor },
-            select: { id: true, parentId: true },
-          });
-        if (!node) throw new Error("parent category not found in this group");
-        ancestors.push({ id: node.id });
-        // Defensive: a cycle would otherwise spin forever. Cycles are
-        // impossible today (no re-parent operation exists) — this is the
-        // guard for the day one lands.
-        if (ancestors.length > MAX_CATEGORY_DEPTH) break;
-        cursor = node.parentId ?? undefined;
-      }
-      assertDepthAllowed(ancestors);
+      // Depth is bounded at MAX_CATEGORY_DEPTH, so the whole chain fits in
+      // ONE query — no loop, no N round-trips inside the transaction.
+      // Nested reads are NOT soft-delete filtered (platform/db gap 3), which
+      // is what we want here: an archived ancestor must still count toward
+      // depth rather than silently shortening the chain.
+      const parent = await tx.category.findFirst({
+        where: { id: input.parentId },
+        select: { id: true, parent: { select: { id: true, parent: { select: { id: true } } } } },
+      });
+      if (!parent) throw new Error("parent category not found in this group");
+      let ancestorCount = 1;
+      if (parent.parent) ancestorCount++;
+      if (parent.parent?.parent) ancestorCount++;
+      assertDepthAllowed(ancestorCount);
     }
     const category = await tx.category.create({
       data: {
@@ -128,77 +122,5 @@ export async function createCategory(
       actorId: input.actorId,
     });
     return category;
-  });
-}
-
-export async function createTag(
-  db: PrismaClient,
-  input: { groupId: string; name: string; actorId?: string },
-) {
-  const id = newId();
-  return withGroup(db, input.groupId, async (tx) => {
-    const tag = await tx.tag.create({
-      data: {
-        id,
-        groupId: input.groupId,
-        name: input.name,
-        slug: makeSlug(input.name, idPrefix(id)),
-      },
-    });
-    await logActivity(tx, {
-      groupId: input.groupId,
-      action: "tag.create",
-      entityType: "TAG",
-      entityId: tag.id,
-      actorId: input.actorId,
-    });
-    return tag;
-  });
-}
-
-/**
- * Idempotent AND concurrency-safe: `skipDuplicates` settles the race in one
- * statement, where a check-then-insert would let the loser hit the primary
- * key and abort its whole transaction.
- */
-export async function addTagToTopic(
-  db: PrismaClient,
-  groupId: string,
-  topicId: string,
-  tagId: string,
-): Promise<void> {
-  await withGroup(db, groupId, (tx) =>
-    tx.topicTag.createMany({
-      data: { topicId, tagId, groupId },
-      skipDuplicates: true,
-    }),
-  );
-}
-
-/**
- * Hard DELETE — the one place V1 does that (SPEC §7 prohibits it elsewhere).
- * A link row carries no content of its own: soft-deleting it would leave a
- * tombstone every tag query then has to filter. Audited, so untagging still
- * leaves a trace.
- */
-export async function removeTagFromTopic(
-  db: PrismaClient,
-  groupId: string,
-  topicId: string,
-  tagId: string,
-  actorId?: string,
-): Promise<void> {
-  await withGroup(db, groupId, async (tx) => {
-    const res = await tx.topicTag.deleteMany({ where: { topicId, tagId } });
-    if (res.count > 0) {
-      await logActivity(tx, {
-        groupId,
-        action: "topic.untag",
-        entityType: "TOPIC",
-        entityId: topicId,
-        actorId,
-        metadata: { tagId },
-      });
-    }
   });
 }

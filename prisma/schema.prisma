@@ -34,7 +34,7 @@ enum UserStatus {
 
 /// The tenant. Parent of the whole content graph; V1 seeds exactly one.
 model Group {
-  id           String    @id @default(cuid())
+  id           String    @id @default(cuid(2))
   slug         String    @unique
   name         String
   description  String?
@@ -61,7 +61,7 @@ enum TopicStatus {
 
 /// Taxonomy (SPEC §4). Self-tree; max depth enforced in the app.
 model Category {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid(2))
   groupId   String
   name      String
   slug      String
@@ -87,7 +87,7 @@ model Category {
 
 /// The organizing spine of the whole content graph (SPEC §4).
 model Topic {
-  id          String      @id @default(cuid())
+  id          String      @id @default(cuid(2))
   groupId     String
   title       String
   slug        String
@@ -112,7 +112,7 @@ model Topic {
 }
 
 model Tag {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid(2))
   groupId   String
   name      String
   slug      String
@@ -165,7 +165,7 @@ enum RevisionEntityType {
 /// SPEC convention; purge hard-deletes past it. FUTURE WRITER: version is
 /// MAX+1 — serialize per entity (row lock) or two saves race one version.
 model Revision {
-  id         String             @id @default(cuid())
+  id         String             @id @default(cuid(2))
   groupId    String
   entityType RevisionEntityType
   entityId   String
@@ -188,7 +188,7 @@ model Revision {
 /// UPDATE/DELETE policy, Postgres rejects both outright. entityType/action
 /// are strings by design (free-form dotted actions, no FK, no enum churn).
 model ActivityLog {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid(2))
   groupId      String
   actorId      String?
   action       String
@@ -205,7 +205,7 @@ model ActivityLog {
 /// Read-side metrics (SPEC §4): searches, opens, revisits — powers the
 /// north-star. Same DB-enforced append-only shape as ActivityLog.
 model EventLog {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid(2))
   groupId      String
   userId       String?
   event        String
@@ -229,7 +229,7 @@ model EventLog {
 /// but unaccepted invite still holds the pending slot until the re-invite
 /// service SUPERSEDES it (soft-delete old, create new; see ADR 0002 + test).
 model Invitation {
-  id          String    @id @default(cuid())
+  id          String    @id @default(cuid(2))
   groupId     String
   email       String
   role        Role
@@ -254,7 +254,7 @@ model Invitation {
 /// correct for invite-only magic-link; revisit only if an OAuth provider
 /// without email ever joins.
 model User {
-  id            String     @id @default(cuid())
+  id            String     @id @default(cuid(2))
   email         String     @unique
   name          String?
   hebrewName    String?
@@ -278,7 +278,7 @@ model User {
 /// group-scoped, NOT RLS-bound (they carry no groupId). Field shapes are the
 /// adapter's contract — do not rename.
 model Account {
-  id                String  @id @default(cuid())
+  id                String  @id @default(cuid(2))
   userId            String
   type              String
   provider          String
@@ -301,7 +301,7 @@ model Account {
 /// revocation — Cascade here fires only on HARD delete, so a soft-deleted
 /// user's sessions otherwise survive and keep logging in (debt-hawk, F2a).
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid(2))
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -323,7 +323,7 @@ model VerificationToken {
 /// Row-level security is enforced on this table by migration
 /// `rls_memberships`; see src/platform/tenancy for the setter seam.
 model Membership {
-  id        String           @id @default(cuid())
+  id        String           @id @default(cuid(2))
   userId    String
   groupId   String
   role      Role

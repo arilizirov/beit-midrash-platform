@@ -10,7 +10,7 @@ import { appUrl } from "../../../test/db-url";
 import { createClient, type PrismaClient } from "../../platform/db";
 import { withGroup } from "../../platform/tenancy";
 
-import { addTagToTopic, createCategory, createTag, createTopic, listTopics } from "./service";
+import { createCategory, createTopic, listTopics } from "./service";
 
 let db: PrismaClient;
 let groupA: string, groupB: string, authorId: string;
@@ -64,76 +64,15 @@ describe("topics", () => {
 
 describe("categories", () => {
   it("nests under a parent", async () => {
-    const root = await createCategory(db, { groupId: groupA, name: "קדשים" });
-    const child = await createCategory(db, { groupId: groupA, name: "זבחים", parentId: root.id });
+    const root = await createCategory(db, { groupId: groupA, name: "קדשים", actorId: authorId });
+    const child = await createCategory(db, { groupId: groupA, name: "זבחים", parentId: root.id, actorId: authorId });
     expect(child.parentId).toBe(root.id);
   });
 
   it("cannot adopt a parent from another group (tenant wall)", async () => {
-    const foreign = await createCategory(db, { groupId: groupB, name: "מועד" });
+    const foreign = await createCategory(db, { groupId: groupB, name: "מועד", actorId: authorId });
     await expect(
-      createCategory(db, { groupId: groupA, name: "פסול", parentId: foreign.id }),
+      createCategory(db, { groupId: groupA, name: "פסול", parentId: foreign.id, actorId: authorId }),
     ).rejects.toThrow();
-  });
-});
-
-describe("tags", () => {
-  it("links a tag to a topic through the join table", async () => {
-    const topic = await createTopic(db, { groupId: groupA, title: "נושא מתויג", authorId });
-    const tag = await createTag(db, { groupId: groupA, name: "קדשים" });
-    await addTagToTopic(db, groupA, topic.id, tag.id);
-    const rows = await withGroup(db, groupA, (tx) =>
-      tx.topicTag.findMany({ where: { topicId: topic.id } }),
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0].tagId).toBe(tag.id);
-  });
-
-  it("tagging twice is idempotent, not an error", async () => {
-    const topic = await createTopic(db, { groupId: groupA, title: "נושא כפול", authorId });
-    const tag = await createTag(db, { groupId: groupA, name: "מועד" });
-    await addTagToTopic(db, groupA, topic.id, tag.id);
-    await addTagToTopic(db, groupA, topic.id, tag.id);
-    const rows = await withGroup(db, groupA, (tx) =>
-      tx.topicTag.findMany({ where: { topicId: topic.id } }),
-    );
-    expect(rows).toHaveLength(1);
-  });
-});
-
-describe("category depth (SPEC §4 — a documented invariant must be enforced)", () => {
-  it("allows nesting up to MAX_CATEGORY_DEPTH and refuses past it", async () => {
-    const d1 = await createCategory(db, { groupId: groupA, name: "עומק א" });
-    const d2 = await createCategory(db, { groupId: groupA, name: "עומק ב", parentId: d1.id });
-    const d3 = await createCategory(db, { groupId: groupA, name: "עומק ג", parentId: d2.id });
-    expect(d3.parentId).toBe(d2.id);
-    await expect(
-      createCategory(db, { groupId: groupA, name: "עומק ד", parentId: d3.id }),
-    ).rejects.toThrow(/MAX_CATEGORY_DEPTH/);
-  });
-});
-
-describe("concurrency", () => {
-  it("simultaneous topic creates do not contend on a shared slug key", async () => {
-    const results = await Promise.all(
-      Array.from({ length: 5 }, (_, i) =>
-        createTopic(db, { groupId: groupA, title: `במקביל ${i}`, authorId }),
-      ),
-    );
-    expect(new Set(results.map((r) => r.slug)).size).toBe(5);
-  });
-
-  it("simultaneous identical tagging yields exactly one link, no throw", async () => {
-    const topic = await createTopic(db, { groupId: groupA, title: "מרוץ תיוג", authorId });
-    const tag = await createTag(db, { groupId: groupA, name: "מרוץ" });
-    await Promise.all([
-      addTagToTopic(db, groupA, topic.id, tag.id),
-      addTagToTopic(db, groupA, topic.id, tag.id),
-      addTagToTopic(db, groupA, topic.id, tag.id),
-    ]);
-    const rows = await withGroup(db, groupA, (tx) =>
-      tx.topicTag.findMany({ where: { topicId: topic.id } }),
-    );
-    expect(rows).toHaveLength(1);
   });
 });

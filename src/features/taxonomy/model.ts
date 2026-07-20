@@ -7,13 +7,12 @@ export type { TopicStatus };
 export const MAX_CATEGORY_DEPTH = 3;
 
 /**
- * Pure depth rule, applied to a parent chain walked from the DB (nearest
- * parent first). Throws rather than returning a boolean so no caller can
- * forget to check — a documented invariant with no enforcement is worse
- * than none at all.
+ * Pure depth rule, given the number of ancestors above the new node. Throws
+ * rather than returning a boolean so no caller can forget to check — a
+ * documented invariant with no enforcement is worse than none at all.
  */
-export function assertDepthAllowed(ancestors: readonly { id: string }[]): void {
-  const newDepth = ancestors.length + 1;
+export function assertDepthAllowed(ancestorCount: number): void {
+  const newDepth = ancestorCount + 1;
   if (newDepth > MAX_CATEGORY_DEPTH) {
     throw new Error(
       `category nesting exceeds MAX_CATEGORY_DEPTH (${MAX_CATEGORY_DEPTH}): would be depth ${newDepth}`,
