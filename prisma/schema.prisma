@@ -1,0 +1,91 @@
+// LearnTorah — tenancy core (SPEC §4: Identity & tenancy).
+// F1 scope: Group, User, Membership. Invitation joins in the auth slice (F2),
+// where its accept-flow logic lives; reserved-future entities are NOT built.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// SPEC §4/§6 — roles per group, closed set.
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  MEMBER
+  GUEST
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+/// The tenant. Parent of the whole content graph; V1 seeds exactly one.
+model Group {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  name         String
+  description  String?
+  settingsJson Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  memberships Membership[]
+}
+
+/// Global identity — deliberately NOT group-scoped (SPEC §4).
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  hebrewName    String?
+  image         String?
+  locale        String     @default("he")
+  passwordHash  String?
+  emailVerified DateTime?
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  memberships Membership[]
+}
+
+/// The User×Group×Role hinge — all RBAC hangs on it (SPEC §4).
+/// Row-level security is enforced on this table by migration
+/// `rls_memberships`; see src/platform/tenancy for the setter seam.
+model Membership {
+  id        String           @id @default(cuid())
+  userId    String
+  groupId   String
+  role      Role
+  status    MembershipStatus
+  joinedAt  DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  deletedAt DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
+
+  // OWNER DECISION for F2 (flagged by review): SPEC §4 says @@unique([userId,
+  // groupId]) verbatim, but with soft-delete a member who leaves and is
+  // re-invited collides with their own deletedAt row. Likely fix: partial
+  // unique WHERE "deletedAt" IS NULL — needs a spec ruling before the invite
+  // flow lands.
+  @@unique([userId, groupId])
+  @@index([groupId, role])
+}
