@@ -72,11 +72,16 @@ model Category {
   deletedAt DateTime?
 
   group    Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  // Composite FK: the parent must live in the SAME group. Postgres checks
+  // FKs with row security OFF, so plain id-FKs let a tenant point at another
+  // tenant's row (verified). Carrying groupId INTO the key makes the wall
+  // structural instead of a service-layer manner.
+  parent   Category?  @relation("CategoryTree", fields: [parentId, groupId], references: [id, groupId], onDelete: Restrict)
   children Category[] @relation("CategoryTree")
   topics   Topic[]
 
   @@unique([groupId, slug])
+  @@unique([id, groupId])
   @@index([groupId, parentId, position])
 }
 
@@ -95,11 +100,13 @@ model Topic {
   deletedAt   DateTime?
 
   group    Group     @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  // Composite FK — the category must be in this group (see Category.parent).
+  category Category? @relation(fields: [categoryId, groupId], references: [id, groupId], onDelete: Restrict)
   author   User      @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
   tags     TopicTag[]
 
   @@unique([groupId, slug])
+  @@unique([id, groupId])
   @@index([groupId, status, updatedAt])
   @@index([groupId, categoryId])
 }
@@ -117,6 +124,7 @@ model Tag {
   topics TopicTag[]
 
   @@unique([groupId, slug])
+  @@unique([id, groupId])
 }
 
 /// SPEC §4 canonical: per-type join tables with REAL FKs — deliberately not
@@ -127,8 +135,12 @@ model TopicTag {
   tagId   String
   groupId String
 
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  // Both sides composite: a link row can only join a topic and a tag that
+  // both belong to ITS group. Cascade is reserved for the audited purge
+  // flow (hard delete is otherwise prohibited, SPEC §7) — link rows are the
+  // one thing that should vanish with their parent rather than linger.
+  topic Topic @relation(fields: [topicId, groupId], references: [id, groupId], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId, groupId], references: [id, groupId], onDelete: Cascade)
 
   @@id([topicId, tagId])
   @@index([groupId, tagId])

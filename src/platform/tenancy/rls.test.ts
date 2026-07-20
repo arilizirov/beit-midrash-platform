@@ -121,3 +121,47 @@ describe("RLS tenant isolation (Membership)", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * RLS is not the whole wall: Postgres validates FOREIGN KEYS with row
+ * security OFF, so an id-only FK lets one tenant reference another tenant's
+ * row even under perfect policies (this was VERIFIED to leak before the
+ * composite keys landed). Carrying groupId into the key closes it
+ * structurally — this test is the proof, and the alarm if anyone "simplifies"
+ * a composite FK back to an id-only one.
+ */
+describe("composite tenant keys (FKs bypass RLS by design)", () => {
+  it("a topic cannot point at another group's category", async () => {
+    const s = Date.now();
+    const author = await db.user.create({ data: { email: `fk-a-${s}@test.local` } });
+    const foreignCat = await withGroup(db, groupB, (tx) =>
+      tx.category.create({ data: { groupId: groupB, name: "זר", slug: `fkc-${s}` } }),
+    );
+    await expect(
+      withGroup(db, groupA, (tx) =>
+        tx.topic.create({
+          data: {
+            groupId: groupA, title: "גנוב", slug: `fkt-${s}`,
+            authorId: author.id, categoryId: foreignCat.id,
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "P2003" });
+  });
+
+  it("a tag link cannot join rows across groups", async () => {
+    const s = Date.now();
+    const author = await db.user.create({ data: { email: `fk-b-${s}@test.local` } });
+    const mine = await withGroup(db, groupA, (tx) =>
+      tx.topic.create({ data: { groupId: groupA, title: "שלי", slug: `fkm-${s}`, authorId: author.id } }),
+    );
+    const foreignTag = await withGroup(db, groupB, (tx) =>
+      tx.tag.create({ data: { groupId: groupB, name: "זר", slug: `fkg-${s}` } }),
+    );
+    await expect(
+      withGroup(db, groupA, (tx) =>
+        tx.topicTag.create({ data: { topicId: mine.id, tagId: foreignTag.id, groupId: groupA } }),
+      ),
+    ).rejects.toMatchObject({ code: "P2003" });
+  });
+});

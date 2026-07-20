@@ -60,6 +60,7 @@ CREATE INDEX "Category_groupId_parentId_position_idx" ON "Category"("groupId", "
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Category_groupId_slug_key" ON "Category"("groupId", "slug");
+CREATE UNIQUE INDEX "Category_id_groupId_key" ON "Category"("id", "groupId");
 
 -- CreateIndex
 CREATE INDEX "Topic_groupId_status_updatedAt_idx" ON "Topic"("groupId", "status", "updatedAt");
@@ -69,9 +70,11 @@ CREATE INDEX "Topic_groupId_categoryId_idx" ON "Topic"("groupId", "categoryId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Topic_groupId_slug_key" ON "Topic"("groupId", "slug");
+CREATE UNIQUE INDEX "Topic_id_groupId_key" ON "Topic"("id", "groupId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Tag_groupId_slug_key" ON "Tag"("groupId", "slug");
+CREATE UNIQUE INDEX "Tag_id_groupId_key" ON "Tag"("id", "groupId");
 
 -- CreateIndex
 CREATE INDEX "TopicTag_groupId_tagId_idx" ON "TopicTag"("groupId", "tagId");
@@ -80,13 +83,16 @@ CREATE INDEX "TopicTag_groupId_tagId_idx" ON "TopicTag"("groupId", "tagId");
 ALTER TABLE "Category" ADD CONSTRAINT "Category_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Category" ADD CONSTRAINT "Category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- Composite FKs carry groupId INTO the key: Postgres validates foreign keys
+-- with row security OFF, so an id-only FK lets a tenant point at another
+-- tenant's row (verified). This makes the wall structural, not a manner.
+ALTER TABLE "Category" ADD CONSTRAINT "Category_parentId_groupId_fkey" FOREIGN KEY ("parentId", "groupId") REFERENCES "Category"("id", "groupId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Topic" ADD CONSTRAINT "Topic_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Topic" ADD CONSTRAINT "Topic_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Topic" ADD CONSTRAINT "Topic_categoryId_groupId_fkey" FOREIGN KEY ("categoryId", "groupId") REFERENCES "Category"("id", "groupId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Topic" ADD CONSTRAINT "Topic_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -95,10 +101,10 @@ ALTER TABLE "Topic" ADD CONSTRAINT "Topic_authorId_fkey" FOREIGN KEY ("authorId"
 ALTER TABLE "Tag" ADD CONSTRAINT "Tag_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TopicTag" ADD CONSTRAINT "TopicTag_topicId_fkey" FOREIGN KEY ("topicId") REFERENCES "Topic"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "TopicTag" ADD CONSTRAINT "TopicTag_topicId_groupId_fkey" FOREIGN KEY ("topicId", "groupId") REFERENCES "Topic"("id", "groupId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TopicTag" ADD CONSTRAINT "TopicTag_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "Tag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "TopicTag" ADD CONSTRAINT "TopicTag_tagId_groupId_fkey" FOREIGN KEY ("tagId", "groupId") REFERENCES "Tag"("id", "groupId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- ============ hand-authored (SPEC §4/§6) ============
 -- Every groupId table gets the tenant wall; the catalog-scan test in
