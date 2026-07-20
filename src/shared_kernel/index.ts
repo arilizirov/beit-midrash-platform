@@ -5,3 +5,4 @@
  * smell — most code belongs in a feature module, not here.
  */
 export { makeSlug } from "./slug";
+export { canSignIn, type GateUser } from "./user-gate";

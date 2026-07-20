@@ -128,7 +128,8 @@ export async function previewInvitation(db: PrismaClient, groupId: string, rawTo
 export async function ensureInvitedUser(db: PrismaClient, groupId: string, rawToken: string) {
   const invite = await previewInvitation(db, groupId, rawToken);
   if (!invite) return null;
-  const existing = await db.user.findFirst({ where: { email: invite.email } });
+  // deletedAt:{} — must SEE a soft-deleted user to reactivate them (layer-3 escape hatch)
+  const existing = await db.user.findFirst({ where: { email: invite.email, deletedAt: {} } });
   if (!existing) {
     return db.user.create({ data: { email: invite.email, status: "ACTIVE" } });
   }

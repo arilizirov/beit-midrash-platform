@@ -46,7 +46,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const email = user.email;
       if (!email) return false;
       const existing = await getPrisma().user.findFirst({
-        where: { email },
+        // deletedAt:{} = layer-3 escape hatch: a soft-deleted row must be
+        // SEEN here so canSignIn rejects it (not silently filtered to null —
+        // same verdict, but the intent stays explicit).
+        where: { email, deletedAt: {} },
         select: { status: true, deletedAt: true },
       });
       return canSignIn(existing);

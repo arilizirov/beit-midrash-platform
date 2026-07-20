@@ -5,7 +5,9 @@
  */
 import { redirect } from "next/navigation";
 
-import { auth, canSignIn } from "../../platform/auth";
+import { canSignIn } from "../../shared_kernel";
+
+import { auth } from "../../platform/auth";
 import { getPrisma } from "../../platform/db";
 import { withGroup } from "../../platform/tenancy";
 
@@ -28,13 +30,23 @@ export async function requireUser() {
   return user!;
 }
 
-/** V1 invariant: exactly one Group (SPEC §4). Multi-group resolves from URL later. */
+/**
+ * V1 invariant: exactly one Group (SPEC §4); multi-group resolves from the
+ * URL later (`/g/[group]`). Resolved by the SEEDED SLUG, not `findFirst` —
+ * an unordered findFirst returns an arbitrary row the moment a second group
+ * exists (caught by a flaky guard test, F3b), which would silently point the
+ * whole app at the wrong tenant.
+ */
+export const SEED_GROUP_SLUG = process.env.SEED_GROUP_SLUG ?? "beit-midrash";
+
 export async function currentGroup() {
   const group = await getPrisma().group.findFirst({
-    where: { deletedAt: null },
+    where: { slug: SEED_GROUP_SLUG },
     select: { id: true, slug: true, name: true },
   });
-  if (!group) throw new Error("no Group seeded — run `npm run db:seed`");
+  if (!group) {
+    throw new Error(`no Group with slug "${SEED_GROUP_SLUG}" — run \`npm run db:seed\``);
+  }
   return group;
 }
 
