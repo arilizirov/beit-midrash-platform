@@ -8,6 +8,8 @@ import { getPrisma } from "@/platform/db";
  * הזמנה — the public accept page. URL carries groupId + raw token (?g=&t=),
  * so every lookup runs inside withGroup: RLS applies, no bypass. Anonymous:
  * offer the magic link. Authenticated: complete the join.
+ * DELIBERATE: the invited email is shown to whoever holds the link — the
+ * link IS the credential; forwarding it discloses the address by design.
  */
 export default async function InvitePage(props: {
   searchParams: Promise<{ g?: string; t?: string; done?: string }>;
@@ -32,7 +34,7 @@ export default async function InvitePage(props: {
   async function sendLink() {
     "use server";
     const user = await ensureInvitedUser(getPrisma(), g!, t!);
-    if (!user) redirect(`/invite?g=${g}&t=${t}`);
+    if (!user) redirect(`/invite?g=${encodeURIComponent(g!)}&t=${encodeURIComponent(t!)}`);
     await signIn("email", {
       email: user.email,
       redirect: false,
@@ -44,7 +46,7 @@ export default async function InvitePage(props: {
   async function join() {
     "use server";
     const s = await auth();
-    if (!s?.user?.id || !s.user.email) redirect(`/invite?g=${g}&t=${t}`);
+    if (!s?.user?.id || !s.user.email) redirect(`/invite?g=${encodeURIComponent(g!)}&t=${encodeURIComponent(t!)}`);
     const res = await completeAccept(getPrisma(), {
       groupId: g!,
       rawToken: t!,
@@ -52,7 +54,7 @@ export default async function InvitePage(props: {
       userEmail: s.user.email,
     });
     if (res.ok || res.reason === "already_member") redirect(`/invite?done=1`);
-    redirect(`/invite?g=${g}&t=${t}`);
+    redirect(`/invite?g=${encodeURIComponent(g!)}&t=${encodeURIComponent(t!)}`);
   }
 
   return (
