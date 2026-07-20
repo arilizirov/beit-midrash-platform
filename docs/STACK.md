@@ -3,14 +3,18 @@
 Project: **LearnTorah — בית המדרש הדיגיטלי**. Locked build spec: [`docs/SPEC.md`](./SPEC.md).
 The brains hold timeless judgment; this file holds the current, project-specific facts.
 
-> VERSIONS ARE DELIBERATELY UNPINNED BELOW. Nothing here has been installed yet —
-> the app is not scaffolded. Pin exact versions at scaffold time and **fetch live
-> docs then**, naming the URL and what you concluded. Do not trust a version
-> number written from memory (including any written here later).
+> Versions below were pinned at scaffold time (2026-07-20) from what `npm install`
+> actually resolved — the lockfile is the ground truth. For anything genuinely
+> time-sensitive, fetch live docs at task time and name the source.
 
 ## Languages & runtimes
-- TypeScript throughout (strict). Node LTS.
+- TypeScript **6.0.x** (strict). Node **>=20** (CI runs 20; local dev on 24).
 - Python is present only for the bigbrain kit's own tooling (verify, boundaries, tests) — not app code.
+
+## Pinned at scaffold (see package-lock.json for exact truth)
+- next **16.2.10** · react/react-dom **19.2.7** · typescript **6.0.3**
+- vitest **4.1.10** · eslint **10.7.0** + typescript-eslint · dependency-cruiser **18.1.0**
+- Not yet installed (join at their slice): Prisma, Auth.js, TipTap, Tailwind, Playwright, sharp.
 
 ## Frameworks & key libraries
 - **Next.js — App Router**, React Server Components + Server Actions.

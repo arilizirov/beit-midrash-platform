@@ -4,9 +4,11 @@ Project: **LearnTorah — בית המדרש הדיגיטלי**. Spec: [`docs/SPE
 The auditor reads THIS first. `boundaries.yaml` + the import graph are ground
 truth for connections; this file adds the human-readable "why".
 
-> STATUS: planned map, written at kit setup. **No app code exists yet** — every
-> module below is declared policy, not built structure. Each becomes real when
-> its slice is stamped with `python bigbrainGenerator/new_domain.py <name>`.
+> STATUS: walking skeleton. **Live modules: `app`, `shared_kernel`** (Next.js
+> shell + slug kernel, tested). All other modules are declared policy — the
+> target map lives as a comment block in `boundaries.yaml` and each module goes
+> live when its slice is stamped with `python bigbrainGenerator/new_domain.py
+> <name>` and registered there.
 
 ## Modules
 
