@@ -19,6 +19,10 @@ function hashToken(raw: string): string {
  * (ADR 0002: expiry is time-derived, so a lapsed invite holds the pending
  * slot until explicitly replaced — this is that replacement, in one tx).
  * Returns the raw token exactly once; only its hash is stored.
+ *
+ * AUTHZ IS THE CALLER'S JOB: the F2c-2 server action must gate this behind
+ * requireMembership + can(role, "invitation.create") — this service trusts
+ * its inputs by design (no framework leakage).
  */
 export async function createInvitation(
   db: PrismaClient,
@@ -27,8 +31,10 @@ export async function createInvitation(
   const email = normalizeEmail(input.email);
   const rawToken = randomBytes(32).toString("base64url");
   const invitation = await withGroup(db, input.groupId, async (tx) => {
+    // groupId is explicit although RLS already scopes the tx — defense in
+    // depth (SPEC §6): one misconfigured layer must not cross tenants.
     await tx.invitation.updateMany({
-      where: { email, acceptedAt: null, deletedAt: null },
+      where: { groupId: input.groupId, email, acceptedAt: null, deletedAt: null },
       data: { deletedAt: new Date() },
     });
     return tx.invitation.create({
@@ -64,44 +70,56 @@ export async function previewInvitation(db: PrismaClient, groupId: string, rawTo
  * Anonymous pre-step: a valid invitation creates (or reactivates) the User
  * row so the magic-link sign-in can succeed (invite-only = User must exist
  * before first sign-in). Inviting IS explicit re-admission for a previously
- * soft-deleted user.
+ * soft-DELETED user — but it must NOT override a global moderation state:
+ * a SUSPENDED/DEACTIVATED user stays locked until an admin lifts it
+ * explicitly (this runs pre-auth; an invite link is not a moderation tool).
  */
 export async function ensureInvitedUser(db: PrismaClient, groupId: string, rawToken: string) {
   const invite = await previewInvitation(db, groupId, rawToken);
   if (!invite) return null;
-  return db.user.upsert({
-    where: { email: invite.email },
-    update: { status: "ACTIVE", deletedAt: null },
-    create: { email: invite.email, status: "ACTIVE" },
-  });
+  const existing = await db.user.findFirst({ where: { email: invite.email } });
+  if (!existing) {
+    return db.user.create({ data: { email: invite.email, status: "ACTIVE" } });
+  }
+  if (existing.status !== "ACTIVE") return null; // refuse: suspension outranks invitation
+  if (existing.deletedAt !== null) {
+    return db.user.update({ where: { id: existing.id }, data: { deletedAt: null } });
+  }
+  return existing;
 }
 
 /**
  * Authenticated completion: the session's email must be the invited email;
  * membership is created with the invited role; the invitation becomes
  * accepted (single-use) — all in one transaction under RLS.
+ *
+ * An EXISTING active membership does NOT consume the token: role changes and
+ * suspension lifts are admin actions ("manage members"), never a side effect
+ * of an invite link — the caller sees `already_member` and the admin can
+ * revoke the dangling invite.
  */
 export async function completeAccept(
   db: PrismaClient,
   input: { groupId: string; rawToken: string; userId: string; userEmail: string },
 ): Promise<{ ok: boolean; reason?: string }> {
-  return withGroup(db, input.groupId, async (tx) => {
-    const invite = await tx.invitation.findFirst({
-      where: {
-        tokenHash: hashToken(input.rawToken),
-        acceptedAt: null,
-        deletedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-    });
-    if (!invite) return { ok: false, reason: "invalid_or_used" };
-    if (invite.email !== normalizeEmail(input.userEmail)) {
-      return { ok: false, reason: "email_mismatch" };
-    }
-    const existing = await tx.membership.findFirst({
-      where: { userId: input.userId, groupId: input.groupId, deletedAt: null },
-    });
-    if (!existing) {
+  try {
+    return await withGroup(db, input.groupId, async (tx) => {
+      const invite = await tx.invitation.findFirst({
+        where: {
+          tokenHash: hashToken(input.rawToken),
+          acceptedAt: null,
+          deletedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (!invite) return { ok: false, reason: "invalid_or_used" };
+      if (invite.email !== normalizeEmail(input.userEmail)) {
+        return { ok: false, reason: "email_mismatch" };
+      }
+      const existing = await tx.membership.findFirst({
+        where: { userId: input.userId, groupId: input.groupId, deletedAt: null },
+      });
+      if (existing) return { ok: false, reason: "already_member" };
       await tx.membership.create({
         data: {
           userId: input.userId,
@@ -111,8 +129,15 @@ export async function completeAccept(
           joinedAt: new Date(),
         },
       });
-    }
-    await tx.invitation.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
-    return { ok: true };
-  });
+      await tx.invitation.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+      return { ok: true };
+    });
+  } catch (e) {
+    // Double-submit race: both requests pass the existing-check, the loser
+    // hits the active-row partial unique and Postgres aborts its tx — so the
+    // race is mapped HERE, outside the transaction. The user IS a member
+    // (the winner committed membership + acceptedAt); that's a success.
+    if ((e as { code?: string }).code === "P2002") return { ok: true };
+    throw e;
+  }
 }

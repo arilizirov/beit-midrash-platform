@@ -6,16 +6,22 @@ export type { Role };
 /**
  * Capabilities with LIVE callers only — the SPEC §6 matrix is the target map;
  * rows join here when their slice ships (same live-only discipline as
- * boundaries.yaml, ADR 0001).
+ * boundaries.yaml, ADR 0001). F2c-2 adds invitation.revoke + member.list
+ * with the admin page that calls them.
  */
-export type Capability = "invitation.create" | "invitation.revoke" | "member.list";
+export type Capability = "invitation.create";
+
+// One shared set: SPEC §6 gives OWNER and ADMIN identical grants for every
+// capability live so far — a single constant can't drift between them.
+const ADMIN_GRANTS: ReadonlySet<Capability> = new Set(["invitation.create"]);
+const NONE: ReadonlySet<Capability> = new Set();
 
 const GRANTS: Record<Role, ReadonlySet<Capability>> = {
-  OWNER: new Set(["invitation.create", "invitation.revoke", "member.list"]),
-  ADMIN: new Set(["invitation.create", "invitation.revoke", "member.list"]),
-  EDITOR: new Set([]),
-  MEMBER: new Set([]),
-  GUEST: new Set([]),
+  OWNER: ADMIN_GRANTS,
+  ADMIN: ADMIN_GRANTS,
+  EDITOR: NONE,
+  MEMBER: NONE,
+  GUEST: NONE,
 };
 
 export function can(role: Role, capability: Capability): boolean {

@@ -39,7 +39,9 @@ describe("invitation flow", () => {
     });
     expect(rawToken).toHaveLength(43); // 32 bytes base64url
     expect(invitation.email).toBe("chaver@inv.local"); // normalized
-    expect(invitation.tokenHash).not.toContain(rawToken.slice(0, 10));
+    const { createHash } = await import("node:crypto");
+    expect(invitation.tokenHash).toBe(createHash("sha256").update(rawToken).digest("hex"));
+    expect(invitation.tokenHash).toHaveLength(64);
   });
 
   it("re-inviting supersedes the pending invitation (old token dies)", async () => {
@@ -97,6 +99,49 @@ describe("invitation flow", () => {
       groupId: groupA, rawToken, userId: user!.id, userEmail: "newcomer@inv.local",
     });
     expect(again.ok).toBe(false);
+  });
+
+  it("an invite does NOT lift a global suspension (moderation outranks invitation)", async () => {
+    await db.user.create({ data: { email: "banned@inv.local", status: "SUSPENDED" } });
+    const { rawToken } = await createInvitation(db, {
+      groupId: groupA, email: "banned@inv.local", role: "MEMBER", invitedById: adminId,
+    });
+    expect(await ensureInvitedUser(db, groupA, rawToken)).toBeNull();
+    const still = await db.user.findFirst({ where: { email: "banned@inv.local" } });
+    expect(still?.status).toBe("SUSPENDED");
+  });
+
+  it("an existing active member does not consume the token (already_member)", async () => {
+    const member = await db.user.create({ data: { email: "veteran@inv.local" } });
+    const { withGroup } = await import("../../platform/tenancy");
+    await withGroup(db, groupA, (tx) =>
+      tx.membership.create({
+        data: { userId: member.id, groupId: groupA, role: "MEMBER", status: "ACTIVE" },
+      }),
+    );
+    const { rawToken } = await createInvitation(db, {
+      groupId: groupA, email: "veteran@inv.local", role: "ADMIN", invitedById: adminId,
+    });
+    const res = await completeAccept(db, {
+      groupId: groupA, rawToken, userId: member.id, userEmail: "veteran@inv.local",
+    });
+    expect(res).toEqual({ ok: false, reason: "already_member" });
+    expect(await previewInvitation(db, groupA, rawToken)).not.toBeNull(); // token NOT consumed
+  });
+
+  it("a double-submit race never throws and yields exactly one membership", async () => {
+    const { rawToken } = await createInvitation(db, {
+      groupId: groupA, email: "eager@inv.local", role: "MEMBER", invitedById: adminId,
+    });
+    const user = await ensureInvitedUser(db, groupA, rawToken);
+    const args = { groupId: groupA, rawToken, userId: user!.id, userEmail: "eager@inv.local" };
+    const [a, b] = await Promise.all([completeAccept(db, args), completeAccept(db, args)]);
+    expect([a.ok, b.ok]).toContain(true); // at least one success, neither throws
+    const { withGroup } = await import("../../platform/tenancy");
+    const rows = await withGroup(db, groupA, (tx) =>
+      tx.membership.findMany({ where: { userId: user!.id, deletedAt: null } }),
+    );
+    expect(rows).toHaveLength(1);
   });
 
   it("a session with a different email cannot hijack the invitation", async () => {

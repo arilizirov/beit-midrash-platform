@@ -13,9 +13,4 @@ describe("can() — RBAC capability check (SPEC §6 matrix, live rows only)", ()
     expect(can("MEMBER", "invitation.create")).toBe(false);
     expect(can("GUEST", "invitation.create")).toBe(false);
   });
-
-  it("revoking an invitation follows the same rule", () => {
-    expect(can("ADMIN", "invitation.revoke")).toBe(true);
-    expect(can("MEMBER", "invitation.revoke")).toBe(false);
-  });
 });
