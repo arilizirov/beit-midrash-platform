@@ -28,6 +28,8 @@ export async function createInvitation(
   db: PrismaClient,
   input: { groupId: string; email: string; role: Role; invitedById: string },
 ) {
+  // Ownership is transferred, never granted by invite link (SPEC §6).
+  if (input.role === "OWNER") throw new Error("invitations cannot grant OWNER");
   const email = normalizeEmail(input.email);
   const rawToken = randomBytes(32).toString("base64url");
   const invitation = await withGroup(db, input.groupId, async (tx) => {
@@ -49,6 +51,27 @@ export async function createInvitation(
     });
   });
   return { rawToken, invitation };
+}
+
+/** Pending invitations for the admin screen (newest first). */
+export async function listPendingInvitations(db: PrismaClient, groupId: string) {
+  return withGroup(db, groupId, (tx) =>
+    tx.invitation.findMany({
+      where: { acceptedAt: null, deletedAt: null },
+      select: { id: true, email: true, role: true, expiresAt: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  );
+}
+
+/** Revoke = soft-delete; the token dies immediately (preview returns null). */
+export async function revokeInvitation(db: PrismaClient, groupId: string, invitationId: string) {
+  return withGroup(db, groupId, (tx) =>
+    tx.invitation.updateMany({
+      where: { id: invitationId, acceptedAt: null, deletedAt: null },
+      data: { deletedAt: new Date() },
+    }),
+  );
 }
 
 /** A pending, unexpired invitation matching this token — or null. */

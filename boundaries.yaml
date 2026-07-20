@@ -60,7 +60,7 @@ allow:
   identity: [platform]
   shared_kernel: []                 # imports nothing
   platform: []                      # platform depends on no domain (ARCHITECTURE.md row)
-  app: [platform]                   # composition root (ARCHITECTURE row: all domains + platform)
+  app: [platform, identity]         # composition root (ARCHITECTURE row: all domains + platform)
 
 # Deep-import ban: crossing into a module is allowed only through its `public`
 # entries — never into its internal files. This is what keeps a boundary real.
