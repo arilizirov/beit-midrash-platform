@@ -52,6 +52,9 @@ model Group {
 /// RLS applies to this table like any other groupId row (no bypass needed).
 /// Uniqueness = "one PENDING invitation per (group, email)": partial unique
 /// WHERE "acceptedAt" IS NULL AND "deletedAt" IS NULL, in the migration.
+/// NOTE expiry is time-derived (expiresAt), not a stored flag — an EXPIRED
+/// but unaccepted invite still holds the pending slot until the re-invite
+/// service SUPERSEDES it (soft-delete old, create new; see ADR 0002 + test).
 model Invitation {
   id          String    @id @default(cuid())
   groupId     String
@@ -68,10 +71,15 @@ model Invitation {
   group     Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
   invitedBy User  @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: Restrict)
 
+  // History-inclusive admin listing ("all invitations for this group") — the
+  // partial unique only indexes PENDING rows, so it cannot serve this.
   @@index([groupId, email])
 }
 
 /// Global identity — deliberately NOT group-scoped (SPEC §4).
+/// email is non-null (stricter than the Auth.js adapter's nullable email) —
+/// correct for invite-only magic-link; revisit only if an OAuth provider
+/// without email ever joins.
 model User {
   id            String     @id @default(cuid())
   email         String     @unique
@@ -115,6 +123,9 @@ model Account {
   @@index([userId])
 }
 
+/// F2 auth slice MUST couple user deactivation/soft-delete to session
+/// revocation — Cascade here fires only on HARD delete, so a soft-deleted
+/// user's sessions otherwise survive and keep logging in (debt-hawk, F2a).
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique

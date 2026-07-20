@@ -50,10 +50,18 @@ describe("membership lifecycle (leave → re-invite)", () => {
   });
 
   it("two ACTIVE memberships for the same user+group are still impossible", async () => {
+    // Self-contained (debt-hawk): own user + own precondition, no dependence
+    // on the previous test's leftovers.
+    const solo = (await db.user.create({ data: { email: "solo@lc.local" } })).id;
+    await withGroup(db, groupA, (tx) =>
+      tx.membership.create({
+        data: { userId: solo, groupId: groupA, role: "MEMBER", status: "ACTIVE" },
+      }),
+    );
     await expect(
       withGroup(db, groupA, (tx) =>
         tx.membership.create({
-          data: { userId, groupId: groupA, role: "GUEST", status: "ACTIVE" },
+          data: { userId: solo, groupId: groupA, role: "GUEST", status: "ACTIVE" },
         }),
       ),
     ).rejects.toThrow(/unique|23505/i);
@@ -91,7 +99,38 @@ describe("invitation lifecycle", () => {
     expect(again.tokenHash).toBe("h3");
   });
 
+  it("an EXPIRED pending invite still holds the slot until superseded", async () => {
+    // Expiry is time-derived — the partial unique cannot see it. This test
+    // pins the REAL contract: re-invite after lapse = soft-delete + create
+    // (the supersede pattern the F2 service must implement; ADR 0002).
+    const lapsed = "lapsed@lc.local";
+    await withGroup(db, groupA, (tx) =>
+      tx.invitation.create({
+        data: { groupId: groupA, email: lapsed, role: "MEMBER", tokenHash: "h4", invitedById: adminId, expiresAt: new Date(Date.now() - 1000) },
+      }),
+    );
+    await expect(
+      withGroup(db, groupA, (tx) =>
+        tx.invitation.create({
+          data: { groupId: groupA, email: lapsed, role: "MEMBER", tokenHash: "h5", invitedById: adminId, expiresAt: week() },
+        }),
+      ),
+    ).rejects.toThrow(/unique|23505/i);
+    // supersede: soft-delete old + create new (one transaction in the service)
+    await withGroup(db, groupA, async (tx) => {
+      await tx.invitation.updateMany({
+        where: { email: lapsed, acceptedAt: null, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      await tx.invitation.create({
+        data: { groupId: groupA, email: lapsed, role: "MEMBER", tokenHash: "h5", invitedById: adminId, expiresAt: week() },
+      });
+    });
+  });
+
   it("invitations are tenant-isolated (cross-tenant read sees nothing)", async () => {
+    const fromA = await withGroup(db, groupA, (tx) => tx.invitation.findMany());
+    expect(fromA.length).toBeGreaterThan(0); // precondition: isolation test is not vacuous
     const fromB = await withGroup(db, groupB, (tx) => tx.invitation.findMany());
     expect(fromB).toEqual([]);
     expect(await db.invitation.findMany()).toEqual([]); // no context ⇒ nothing
