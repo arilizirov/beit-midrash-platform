@@ -26,3 +26,7 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Prisma 7 generated client (rebuilt via `prisma generate`)
+generated/
+!.env.example

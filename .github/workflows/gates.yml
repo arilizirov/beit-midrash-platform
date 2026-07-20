@@ -21,10 +21,23 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: learntorah_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       # Arm the coverage gate by setting a number (e.g. "80"). Empty = off.
       # Requires pytest-cov (Python) or coverage wired into your `npm test`.
       MIN_COVERAGE: ""
+      # DB for the RLS must-fail suite (vitest globalSetup migrates + provisions
+      # the non-superuser app role against this URL).
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/learntorah_test"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,6 +54,8 @@ jobs:
           # The kit's own tools/tests (BoundaryGuard, skill-lint) import yaml
           # regardless of the app's stack — install it unconditionally.
           pip install pyyaml
+          # Prisma 7 client is generated (gitignored) — rebuild before typecheck.
+          if [ -d prisma ]; then npx prisma generate; fi
       - name: Run the discipline cycle (boundaries.yml owns boundaries)
         run: |
           ARGS="--no-boundaries --no-e2e"
@@ -67,12 +82,16 @@ jobs:
           git fetch origin "${{ github.base_ref }}" --depth=1 || true
           # Exclude lockfiles and generated/vendored paths — a legit lockfile bump
           # shouldn't trip the gate; only human-authored changes should count.
+          # NOTE: the action brace MUST sit on the same line as the pattern —
+          # on its own line awk default-prints matches and sums unconditionally,
+          # producing a multiline CHANGED that [ -gt ] cannot parse: the gate
+          # then FAILS OPEN (always passes). See KIT_FIXES.md #7.
           CHANGED=$(git diff --numstat "$BASE"...HEAD | awk '
             $1!="-" && $2!="-" &&
             $3 !~ /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Cargo\.lock|go\.sum)$/ &&
             $3 !~ /(^|\/)(dist|build|vendor|node_modules|coverage|\.next)\// &&
-            $3 !~ /\.(min\.(js|css)|snap|lock)$/
-            {s+=$1+$2} END {print s+0}')
+            $3 !~ /\.(min\.(js|css)|snap|lock)$/ {s+=$1+$2}
+            END {print s+0}')
           echo "human-authored changed lines: $CHANGED (limit $MAX_CHANGED_LINES)"
           if [ "$CHANGED" -gt "$MAX_CHANGED_LINES" ]; then
             echo "::error::PR too large ($CHANGED > $MAX_CHANGED_LINES). Break it into stacked PRs, one stage each."
