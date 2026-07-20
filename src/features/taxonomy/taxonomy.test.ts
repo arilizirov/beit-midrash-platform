@@ -10,7 +10,14 @@ import { appUrl } from "../../../test/db-url";
 import { createClient, type PrismaClient } from "../../platform/db";
 import { withGroup } from "../../platform/tenancy";
 
-import { createCategory, createTopic, listTopics } from "./service";
+import {
+  addTagToTopic,
+  createCategory,
+  createTag,
+  createTopic,
+  listTopics,
+  removeTagFromTopic,
+} from "./service";
 
 let db: PrismaClient;
 let groupA: string, groupB: string, authorId: string;
@@ -74,5 +81,52 @@ describe("categories", () => {
     await expect(
       createCategory(db, { groupId: groupA, name: "פסול", parentId: foreign.id, actorId: authorId }),
     ).rejects.toThrow();
+  });
+});
+
+describe("tags", () => {
+  it("links a tag to a topic and audits both directions symmetrically", async () => {
+    const topic = await createTopic(db, { groupId: groupA, title: "נושא מתויג", authorId });
+    const tag = await createTag(db, { groupId: groupA, name: "קדשים", actorId: authorId });
+    expect(await addTagToTopic(db, groupA, topic.id, tag.id, authorId)).toBe(true);
+    expect(await removeTagFromTopic(db, groupA, topic.id, tag.id, authorId)).toBe(true);
+    const actions = await withGroup(db, groupA, (tx) =>
+      tx.activityLog.findMany({ where: { entityId: topic.id }, select: { action: true } }),
+    );
+    // an audit trail with removals but no additions would be worse than none
+    expect(actions.map((a) => a.action)).toContain("topic.tag");
+    expect(actions.map((a) => a.action)).toContain("topic.untag");
+  });
+
+  it("tagging twice is idempotent and reports the no-op", async () => {
+    const topic = await createTopic(db, { groupId: groupA, title: "נושא כפול", authorId });
+    const tag = await createTag(db, { groupId: groupA, name: "מועד", actorId: authorId });
+    expect(await addTagToTopic(db, groupA, topic.id, tag.id, authorId)).toBe(true);
+    expect(await addTagToTopic(db, groupA, topic.id, tag.id, authorId)).toBe(false);
+    const rows = await withGroup(db, groupA, (tx) =>
+      tx.topicTag.findMany({ where: { topicId: topic.id } }),
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("the tag vocabulary does not fork: same name returns the same row", async () => {
+    const a = await createTag(db, { groupId: groupA, name: "זבחים", actorId: authorId });
+    const b = await createTag(db, { groupId: groupA, name: "  זבחים  ", actorId: authorId });
+    expect(b.id).toBe(a.id);
+  });
+
+  it("concurrent creates of the same tag name still yield ONE tag", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        createTag(db, { groupId: groupA, name: "במקביל", actorId: authorId }),
+      ),
+    );
+    expect(new Set(results.map((r) => r.id)).size).toBe(1);
+  });
+
+  it("the same tag name is independent per group", async () => {
+    const inA = await createTag(db, { groupId: groupA, name: "משותף", actorId: authorId });
+    const inB = await createTag(db, { groupId: groupB, name: "משותף", actorId: authorId });
+    expect(inB.id).not.toBe(inA.id);
   });
 });

@@ -124,3 +124,99 @@ export async function createCategory(
     return category;
   });
 }
+
+/**
+ * Find-or-create by normalized name (review, F3c2): the slug embeds the row's
+ * own id prefix, so two calls with the same name would otherwise produce two
+ * rows with different slugs and NO error — a tag vocabulary that silently
+ * forks. A partial unique on (groupId, name) WHERE deletedAt IS NULL makes
+ * that impossible; this resolves the race rather than throwing on it.
+ */
+export async function createTag(
+  db: PrismaClient,
+  input: { groupId: string; name: string; actorId: string },
+) {
+  const name = input.name.trim();
+  const id = newId();
+  return withGroup(db, input.groupId, async (tx) => {
+    const existing = await tx.tag.findFirst({ where: { name } });
+    if (existing) return existing;
+    try {
+      const tag = await tx.tag.create({
+        data: { id, groupId: input.groupId, name, slug: makeSlug(name, idPrefix(id)) },
+      });
+      await logActivity(tx, {
+        groupId: input.groupId,
+        action: "tag.create",
+        entityType: "TAG",
+        entityId: tag.id,
+        actorId: input.actorId,
+      });
+      return tag;
+    } catch (e) {
+      // Lost the create race — the winner's row is the vocabulary entry.
+      if ((e as { code?: string }).code !== "P2002") throw e;
+      return tx.tag.findFirstOrThrow({ where: { name } });
+    }
+  });
+}
+
+/**
+ * Idempotent AND concurrency-safe: `skipDuplicates` settles the race in one
+ * statement, where a check-then-insert would let the loser hit the primary
+ * key and abort its whole transaction. Audited only when a row is actually
+ * written, mirroring untag — an audit trail showing removals with no
+ * matching additions would be worse than none.
+ */
+export async function addTagToTopic(
+  db: PrismaClient,
+  groupId: string,
+  topicId: string,
+  tagId: string,
+  actorId: string,
+): Promise<boolean> {
+  return withGroup(db, groupId, async (tx) => {
+    const res = await tx.topicTag.createMany({
+      data: { topicId, tagId, groupId },
+      skipDuplicates: true,
+    });
+    if (res.count === 0) return false;
+    await logActivity(tx, {
+      groupId,
+      action: "topic.tag",
+      entityType: "TOPIC",
+      entityId: topicId,
+      actorId,
+      metadata: { tagId },
+    });
+    return true;
+  });
+}
+
+/**
+ * Hard DELETE — the one place V1 does that (SPEC §7 prohibits it elsewhere).
+ * A link row carries no content of its own: soft-deleting it would leave a
+ * tombstone every tag query then has to filter. Audited, and its `topic.tag`
+ * counterpart above means the trail is symmetric.
+ */
+export async function removeTagFromTopic(
+  db: PrismaClient,
+  groupId: string,
+  topicId: string,
+  tagId: string,
+  actorId: string,
+): Promise<boolean> {
+  return withGroup(db, groupId, async (tx) => {
+    const res = await tx.topicTag.deleteMany({ where: { topicId, tagId } });
+    if (res.count === 0) return false;
+    await logActivity(tx, {
+      groupId,
+      action: "topic.untag",
+      entityType: "TOPIC",
+      entityId: topicId,
+      actorId,
+      metadata: { tagId },
+    });
+    return true;
+  });
+}
