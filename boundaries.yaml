@@ -31,6 +31,9 @@ layout: features
 # its allow-list from that table exactly — and reviewers diff against it,
 # because over-granting is not mechanically caught until then.
 modules:
+  files:
+    path: features/files
+    public: [index]
   taxonomy:
     path: features/taxonomy
     public: [index]
@@ -46,7 +49,7 @@ modules:
   platform:
     path: platform
     # public surfaces grow per slice; target list in docs/ARCHITECTURE.md
-    public: [db, tenancy, auth, telemetry]
+    public: [db, tenancy, auth, telemetry, storage]
 
 # Boring, stable, imports nothing; implicitly importable by everyone.
 # ids (cuid), Result/errors, Hebrew bidi + nikud helpers, shared enums.
@@ -60,6 +63,7 @@ shared_kernel:
 # it. Indexing and notifying are PUSH-based — a domain calls search/
 # notifications, never the reverse — so search stays a leaf, not a hub.
 allow:
+  files: [platform]
   taxonomy: [platform]
   identity: [platform]
   shared_kernel: []                 # imports nothing
