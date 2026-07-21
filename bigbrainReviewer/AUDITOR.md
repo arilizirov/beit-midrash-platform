@@ -17,7 +17,13 @@ yourself. Your separation from the builder is the entire reason you are useful.
    shouldn't depend on X, it should go through Y").
 3. Drop into specific files ONLY when the map or a check says something looks
    wrong. Detail on demand, not by default.
-4. **Vet before you report.** Open every file you cite and confirm the finding
+4. **Ask what the safety nets actually prove.** For each claimed guarantee
+   (isolation, revocation, append-only, idempotency), ask whether its test could
+   pass with the guarantee removed — wrong role, unreachable failure path,
+   inputs that differ so the broken design also passes. A guarantee nobody has
+   watched fail is a claim, not a wall. Say which walls you saw proven and which
+   you only saw asserted.
+5. **Vet before you report.** Open every file you cite and confirm the finding
    in the actual code before it reaches your output — your own (and any
    sub-pass's) line numbers and attributions are leads, not facts, and a wrong
    excerpt becomes a wrong instruction. Drop duplicates, and downgrade anything
