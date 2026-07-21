@@ -22,8 +22,9 @@
  *
  * LEFT OUT, so nobody finds out on restore day: Revision / ActivityLog /
  * EventLog (history and audit are not portable content); Account / Session /
- * VerificationToken (global identity, no groupId). The file manifest and
- * pending invitations land in the next slice.
+ * VerificationToken (global identity, no groupId). Invitation IS included,
+ * minus its tokenHash — a pending invite is group state, its secret is not
+ * the group's to carry around in a file.
  *
  * SCALING LIMIT: built in memory in one transaction. Right for a chevruta of
  * tens; a large multi-group deployment needs this streamed on the queue tier.
@@ -92,6 +93,21 @@ export async function exportGroup(
           user: { select: { email: true, name: true, hebrewName: true } },
         },
       });
+      const invitations = await tx.invitation.findMany({
+        where: scope,
+        orderBy: { id: "asc" },
+        // tokenHash deliberately absent — exporting a live credential would
+        // turn a backup into a way in.
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          invitedById: true,
+          expiresAt: true,
+          acceptedAt: true,
+          deletedAt: true,
+        },
+      });
       const categories = await tx.category.findMany({
         where: scope,
         orderBy: { slug: "asc" },
@@ -144,6 +160,24 @@ export async function exportGroup(
         },
       });
 
+      const files = await tx.attachment.findMany({
+        where: scope,
+        orderBy: { objectKey: "asc" },
+        select: {
+          id: true,
+          entityType: true,
+          entityId: true,
+          kind: true,
+          objectKey: true,
+          thumbnailKey: true,
+          fileName: true,
+          mimeType: true,
+          sizeBytes: true,
+          uploadedById: true,
+          deletedAt: true,
+        },
+      });
+
       // TopicTag has no deletedAt, so a default export would emit edges
       // pointing at topics/tags that are NOT in this document — a restore
       // would find dangling ids. Same for links whose TOPIC end is excluded.
@@ -166,7 +200,7 @@ export async function exportGroup(
         actorId: input.actorId,
         // No emails: ActivityLog has no delete path, so it must not become a
         // second permanent copy of what the export contains.
-        metadata: { includeDeleted, topics: topics.length },
+        metadata: { includeDeleted, topics: topics.length, files: files.length },
       });
 
       return {
@@ -175,11 +209,14 @@ export async function exportGroup(
         includeDeleted,
         group,
         memberships,
+        invitations,
         categories,
         topics,
         tags,
         topicTags,
         links,
+        /** Manifest only — fetch each objectKey separately with a signed URL. */
+        files,
       };
     },
     // A coherent snapshot is the whole reason for the transaction; the
