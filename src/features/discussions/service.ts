@@ -148,3 +148,79 @@ export async function listContributions(db: PrismaClient, groupId: string, discu
     }),
   );
 }
+
+/**
+ * Record a summary of a discussion. Several may coexist; at most one is
+ * canonical (the version-of-record), and that is enforced by a partial unique
+ * index, not by this function's good intentions.
+ */
+export async function addSummary(
+  db: PrismaClient,
+  input: {
+    groupId: string;
+    discussionId: string;
+    authorId: string;
+    contentJson?: object;
+    contentText?: string;
+    generatedByAI?: boolean;
+  },
+) {
+  // A summary with no content could still be pinned as the version-of-record.
+  if (!input.contentText?.trim() && !input.contentJson) {
+    throw new Error("summary must have content");
+  }
+  const id = newId();
+  return withGroup(db, input.groupId, async (tx) => {
+    // topicId is DERIVED, never supplied: it denormalizes the discussion's own
+    // topic so a topic page can list summaries without a join. Taking it from
+    // the caller would let a summary be filed under an unrelated topic.
+    const discussion = await tx.discussion.findFirst({
+      where: { id: input.discussionId },
+      select: { topicId: true },
+    });
+    if (!discussion) throw new Error("discussion not found in this group");
+
+    const summary = await tx.summary.create({
+      data: {
+        id,
+        groupId: input.groupId,
+        discussionId: input.discussionId,
+        topicId: discussion.topicId,
+        contentJson: input.contentJson,
+        contentText: input.contentText,
+        generatedByAI: input.generatedByAI ?? false,
+        authorId: input.authorId,
+      },
+    });
+    await logActivity(tx, {
+      groupId: input.groupId,
+      action: "summary.create",
+      entityType: "SUMMARY",
+      entityId: summary.id,
+      actorId: input.authorId,
+      // worth auditing: an AI-written summary must never be mistaken for a
+      // member's own words
+      metadata: { generatedByAI: summary.generatedByAI },
+    });
+    return summary;
+  });
+}
+
+export async function listSummaries(db: PrismaClient, groupId: string, discussionId: string) {
+  return withGroup(db, groupId, (tx) =>
+    tx.summary.findMany({
+      where: { discussionId },
+      // createdAt is transaction-START time, so rows written together tie;
+      // id breaks it so the order is total and the list never reshuffles.
+      orderBy: [{ isCanonical: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+      select: {
+        id: true,
+        contentText: true,
+        isCanonical: true,
+        generatedByAI: true,
+        authorId: true,
+        createdAt: true,
+      },
+    }),
+  );
+}
