@@ -51,8 +51,10 @@ model Group {
   categories   Category[]
   topics       Topic[]
   tags         Tag[]
-  attachments  Attachment[]
-  links        InternalLink[]
+  attachments   Attachment[]
+  links         InternalLink[]
+  discussions   Discussion[]
+  contributions Contribution[]
 }
 
 enum TopicStatus {
@@ -116,6 +118,7 @@ model Topic {
   category Category? @relation(fields: [categoryId, groupId], references: [id, groupId], onDelete: Restrict)
   author   User      @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
   tags     TopicTag[]
+  discussions Discussion[]
 
   // NOTE the live-row unique is a PARTIAL index (WHERE "deletedAt" IS NULL)
   // in migration `content_taxonomy` — Prisma cannot express partial uniques,
@@ -166,6 +169,82 @@ model TopicTag {
 
   @@id([topicId, tagId])
   @@index([groupId, tagId])
+}
+
+enum DiscussionStatus {
+  DRAFT
+  OPEN
+  RESOLVED
+  ARCHIVED
+}
+
+/// SPEC §4 names a `status` on Contribution but does not enumerate it; this
+/// is a LOCAL choice, kept deliberately narrower than DiscussionStatus (a
+/// single opinion is not "resolved").
+enum ContributionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// A question put to the chevruta (SPEC §4). Always belongs to a Topic.
+model Discussion {
+  id          String           @id @default(cuid(2))
+  groupId     String
+  topicId     String
+  /// The question itself.
+  title       String
+  /// Framing text. contentJson is canonical (ProseMirror); contentText is a
+  /// derived rendering for search and plain display — never hand-edited.
+  contentJson Json?
+  contentText String?
+  status      DiscussionStatus @default(DRAFT)
+  authorId    String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  group  Group  @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  // Composite FK — the topic must be in this group. Postgres checks FKs with
+  // row security OFF, so an id-only FK lets one tenant reference another's row.
+  topic  Topic  @relation(fields: [topicId, groupId], references: [id, groupId], onDelete: Restrict)
+  author User   @relation("DiscussionsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+
+  contributions Contribution[]
+
+  @@unique([id, groupId])
+  @@index([groupId, topicId, status])
+  @@index([groupId, updatedAt])
+}
+
+/// One participant's opinion within a Discussion (SPEC §4).
+///
+/// authorId and createdById are deliberately separate: in a real chevruta one
+/// person often writes down what another said. authorId is WHOSE opinion it
+/// is; createdById is who typed it. "Edit own" checks createdById, and the UI
+/// shows both when they differ — otherwise recording someone's words would
+/// silently attribute them to the scribe.
+model Contribution {
+  id           String             @id @default(cuid(2))
+  groupId      String
+  discussionId String
+  authorId     String
+  createdById  String
+  contentJson  Json?
+  contentText  String?
+  position     Int                @default(0)
+  status       ContributionStatus @default(PUBLISHED)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  deletedAt    DateTime?
+
+  group      Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  discussion Discussion @relation(fields: [discussionId, groupId], references: [id, groupId], onDelete: Restrict)
+  author     User       @relation("ContributionsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  createdBy  User       @relation("ContributionsCreated", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, groupId])
+  @@index([groupId, discussionId, position])
 }
 
 /// SPEC §4: what an Attachment may hang off. Closed set on purpose — the
@@ -396,6 +475,9 @@ model User {
   topicsAuthored  Topic[]        @relation("TopicsAuthored")
   attachments     Attachment[]   @relation("AttachmentsUploaded")
   linksCreated    InternalLink[] @relation("LinksCreated")
+  discussionsAuthored   Discussion[]   @relation("DiscussionsAuthored")
+  contributionsAuthored Contribution[] @relation("ContributionsAuthored")
+  contributionsCreated  Contribution[] @relation("ContributionsCreated")
 }
 
 /// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
