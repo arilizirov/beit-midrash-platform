@@ -165,3 +165,24 @@ describe("composite tenant keys (FKs bypass RLS by design)", () => {
     ).rejects.toMatchObject({ code: "P2003" });
   });
 });
+
+describe("transaction options", () => {
+  it("defaults to READ COMMITTED and honours an explicit isolation level", async () => {
+    // Postgres' default means every statement takes a NEW snapshot, so a
+    // multi-statement read is not a point-in-time view. Callers that need one
+    // (an export, a consistency check) must ask for it — and this proves the
+    // option actually reaches the driver rather than being silently dropped.
+    const def = await withGroup(db, groupA, (tx) =>
+      tx.$queryRaw<{ transaction_isolation: string }[]>`SHOW transaction_isolation`,
+    );
+    expect(def[0]!.transaction_isolation).toBe("read committed");
+
+    const repeatable = await withGroup(
+      db,
+      groupA,
+      (tx) => tx.$queryRaw<{ transaction_isolation: string }[]>`SHOW transaction_isolation`,
+      { isolationLevel: "RepeatableRead" },
+    );
+    expect(repeatable[0]!.transaction_isolation).toBe("repeatable read");
+  });
+});
