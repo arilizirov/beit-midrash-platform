@@ -22,12 +22,3 @@ export function canEditNote(
   return note.visibility === "GROUP" && actor.canModerate;
 }
 
-/**
- * authorId is immutable after creation. This is the whole of the
- * author-laundering fix (verified, F5b): the only way to turn another member's
- * GROUP note PRIVATE is to first become its author, and the WITH CHECK on the
- * Note policy already refuses a PRIVATE write by a non-author. Deny the
- * reassignment and the attack is not expressible; allow it and the policy is
- * powerless, because after the reassignment the thief IS the author.
- */
-export const IMMUTABLE_NOTE_FIELDS = ["authorId", "groupId", "id"] as const;
