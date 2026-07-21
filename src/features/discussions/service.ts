@@ -206,6 +206,79 @@ export async function addSummary(
   });
 }
 
+/**
+ * Pin a summary as the version-of-record, unpinning whichever held the slot.
+ *
+ * **AUTHZ: pinning is a MODERATE capability (SPEC §6) — owner/admin only.**
+ * It is strictly narrower than "write a summary", which any editor may do.
+ * Do not reuse the create-summary check here; deciding which text the group
+ * will cite later is a different decision from adding one more draft.
+ *
+ * The unpin and the pin share ONE transaction. Nothing here can survive
+ * halfway: a failure after the unpin would otherwise commit a discussion with
+ * NO version of record, which is worse than the state we started in. The
+ * guard also runs BEFORE the unpin, so an unresolvable target changes nothing.
+ */
+export async function setCanonicalSummary(
+  db: PrismaClient,
+  groupId: string,
+  summaryId: string,
+  actorId: string,
+) {
+  try {
+    return await pinCanonical(db, groupId, summaryId, actorId);
+  } catch (error) {
+    // The partial unique index turns a concurrent double-pin into a raw
+    // P2002. That is the index doing its job, but the loser of the race
+    // deserves a sentence rather than a driver error code.
+    if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") {
+      throw new Error("another summary was pinned at the same moment — reload and try again");
+    }
+    throw error;
+  }
+}
+
+async function pinCanonical(
+  db: PrismaClient,
+  groupId: string,
+  summaryId: string,
+  actorId: string,
+) {
+  return withGroup(db, groupId, async (tx) => {
+    const target = await tx.summary.findFirst({
+      where: { id: summaryId },
+      select: { id: true, discussionId: true },
+    });
+    if (!target) throw new Error("summary not found in this group");
+
+    // Read before the unpin: the audit's most interesting half is WHICH text
+    // stopped being the version of record.
+    const displaced = await tx.summary.findFirst({
+      where: { groupId, discussionId: target.discussionId, isCanonical: true },
+      select: { id: true },
+    });
+    // groupId is redundant under FORCEd RLS and included anyway — referential
+    // integrity must not depend on RLS alone (see Revision).
+    await tx.summary.updateMany({
+      where: { groupId, discussionId: target.discussionId, isCanonical: true },
+      data: { isCanonical: false },
+    });
+    const pinned = await tx.summary.update({
+      where: { id: summaryId },
+      data: { isCanonical: true },
+    });
+    await logActivity(tx, {
+      groupId,
+      action: "summary.pin",
+      entityType: "SUMMARY",
+      entityId: summaryId,
+      actorId,
+      metadata: { discussionId: target.discussionId, displacedId: displaced?.id ?? null },
+    });
+    return pinned;
+  });
+}
+
 export async function listSummaries(db: PrismaClient, groupId: string, discussionId: string) {
   return withGroup(db, groupId, (tx) =>
     tx.summary.findMany({
