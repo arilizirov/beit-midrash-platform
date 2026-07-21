@@ -82,7 +82,10 @@ model Category {
   children Category[] @relation("CategoryTree")
   topics   Topic[]
 
-  @@unique([groupId, slug])
+  // NOTE the live-row unique is a PARTIAL index (WHERE "deletedAt" IS NULL)
+  // in migration `content_taxonomy` — Prisma cannot express partial uniques,
+  // and declaring the absolute one here would make the next `migrate dev`
+  // restore it and re-break ADR 0002's leave-and-return behaviour.
   @@unique([id, groupId])
   @@index([groupId, parentId, position])
 }
@@ -101,16 +104,30 @@ model Topic {
   updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
 
+  /// DB-GENERATED (migration `search_columns`): weighted tsvector and
+  /// normalized text, both computed by Postgres from title+description via
+  /// bm_normalize(). Declared as Unsupported so Prisma neither drops them on
+  /// the next migrate nor exposes them as writable fields.
+  searchVector Unsupported("tsvector")?
+  searchText   Unsupported("text")?
+
   group    Group     @relation(fields: [groupId], references: [id], onDelete: Restrict)
   // Composite FK — the category must be in this group (see Category.parent).
   category Category? @relation(fields: [categoryId, groupId], references: [id, groupId], onDelete: Restrict)
   author   User      @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
   tags     TopicTag[]
 
-  @@unique([groupId, slug])
+  // NOTE the live-row unique is a PARTIAL index (WHERE "deletedAt" IS NULL)
+  // in migration `content_taxonomy` — Prisma cannot express partial uniques,
+  // and declaring the absolute one here would make the next `migrate dev`
+  // restore it and re-break ADR 0002's leave-and-return behaviour.
   @@unique([id, groupId])
   @@index([groupId, status, updatedAt])
   @@index([groupId, categoryId])
+  // Declared so Prisma does not drop them; the columns they cover are
+  // DB-generated (see the field comments above).
+  @@index([searchVector], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model Tag {
@@ -125,11 +142,10 @@ model Tag {
   group  Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
   topics TopicTag[]
 
-  // NOTE a partial unique on (groupId, name) WHERE deletedAt IS NULL lives in
-  // migration `tag_name_unique` — Prisma cannot express partial uniques, and
-  // without it the tag vocabulary silently forks (two "קדשים" tags with
-  // different slugs and no error).
-  @@unique([groupId, slug])
+  // NOTE both uniques for Tag are PARTIAL indexes (live rows only): slug in
+  // `content_taxonomy`, name in `tag_name_unique`. Prisma cannot express
+  // partial uniques, so neither is declared here — declaring the absolute
+  // form would make the next `migrate dev` restore it.
   @@unique([id, groupId])
 }
 
