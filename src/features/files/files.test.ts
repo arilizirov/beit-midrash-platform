@@ -15,6 +15,7 @@ import {
   confirmUpload,
   downloadUrl,
   listAttachments,
+  linkContent,
   startUpload,
 } from "./service";
 
@@ -195,5 +196,88 @@ describe("upload contract", () => {
     });
     await expect(downloadUrl(db, storage, groupA, att.id)).resolves.toContain("memory://download");
     await expect(downloadUrl(db, storage, groupB, att.id)).rejects.toThrow(/not found/i);
+  });
+
+  it("the DB refuses a key smuggled under another tenant's prefix", async () => {
+    // The CHECK constraint is the backstop behind the service guard — proven
+    // here by going around the service entirely.
+    await expect(
+      withGroup(db, groupA, (tx) =>
+        tx.$executeRaw`INSERT INTO "Attachment"
+          ("id","groupId","entityType","entityId","kind","objectKey","fileName","mimeType","sizeBytes","uploadedById","updatedAt")
+          VALUES ('smuggled01234567890', ${groupA}, 'NOTE', 'n', 'FILE', ${`${groupB}/x/y`}, 'f', 'text/plain', 1, ${userId}, now())`,
+      ),
+    ).rejects.toThrow();
+  });
+});
+
+describe("internal links", () => {
+  it("links two pieces of content, idempotently, and audits it", async () => {
+    const a = await linkContent(db, {
+      groupId: groupA,
+      fromType: "TOPIC",
+      fromId: "t1",
+      toType: "NOTE",
+      toId: "n1",
+      createdById: userId,
+    });
+    const b = await linkContent(db, {
+      groupId: groupA,
+      fromType: "TOPIC",
+      fromId: "t1",
+      toType: "NOTE",
+      toId: "n1",
+      createdById: userId,
+    });
+    expect(b.id).toBe(a.id);
+    const audit = await withGroup(db, groupA, (tx) =>
+      tx.activityLog.findMany({ where: { entityId: "t1" }, select: { action: true } }),
+    );
+    expect(audit.map((x) => x.action)).toContain("link.create");
+  });
+
+  it("a soft-deleted edge does not block re-linking (ADR 0002)", async () => {
+    const link = await linkContent(db, {
+      groupId: groupA,
+      fromType: "TOPIC",
+      fromId: "t2",
+      toType: "NOTE",
+      toId: "n2",
+      createdById: userId,
+    });
+    await withGroup(db, groupA, (tx) =>
+      tx.internalLink.update({ where: { id: link.id }, data: { deletedAt: new Date() } }),
+    );
+    const again = await linkContent(db, {
+      groupId: groupA,
+      fromType: "TOPIC",
+      fromId: "t2",
+      toType: "NOTE",
+      toId: "n2",
+      createdById: userId,
+    });
+    expect(again.id).not.toBe(link.id);
+  });
+
+  it("two tenants may link the same ids without colliding", async () => {
+    // The edge unique is enforced BELOW row security, so a tenant-blind key
+    // would make this fail on a row groupB cannot even see.
+    const inA = await linkContent(db, {
+      groupId: groupA,
+      fromType: "TOPIC",
+      fromId: "shared",
+      toType: "NOTE",
+      toId: "shared",
+      createdById: userId,
+    });
+    const inB = await linkContent(db, {
+      groupId: groupB,
+      fromType: "TOPIC",
+      fromId: "shared",
+      toType: "NOTE",
+      toId: "shared",
+      createdById: userId,
+    });
+    expect(inB.id).not.toBe(inA.id);
   });
 });
