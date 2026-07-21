@@ -49,7 +49,7 @@ modules:
   platform:
     path: platform
     # public surfaces grow per slice; target list in docs/ARCHITECTURE.md
-    public: [db, tenancy, auth, telemetry, storage]
+    public: [db, tenancy, auth, telemetry, storage, purge]
 
 # Boring, stable, imports nothing; implicitly importable by everyone.
 # ids (cuid), Result/errors, Hebrew bidi + nikud helpers, shared enums.
