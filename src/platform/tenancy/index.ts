@@ -14,13 +14,26 @@ import type { PrismaClient } from "../db";
 /** The transaction handle passed to `withGroup` callbacks. */
 export type GroupTx = Prisma.TransactionClient;
 
+export type GroupTxOptions = {
+  /** Postgres default is READ COMMITTED — every statement takes a NEW
+   *  snapshot, so a multi-statement read is NOT a point-in-time view.
+   *  Pass "RepeatableRead" when the caller needs one (e.g. an export). */
+  isolationLevel?: "ReadCommitted" | "RepeatableRead" | "Serializable";
+  /** Prisma's interactive-transaction default is 5s. */
+  timeout?: number;
+};
+
 export async function withGroup<T>(
   client: PrismaClient,
   groupId: string,
   fn: (tx: GroupTx) => Promise<T>,
+  options?: GroupTxOptions,
 ): Promise<T> {
-  return client.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT set_config('app.group_id', ${groupId}, true)`;
-    return fn(tx);
-  });
+  return client.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT set_config('app.group_id', ${groupId}, true)`;
+      return fn(tx);
+    },
+    options as Parameters<PrismaClient["$transaction"]>[1],
+  );
 }
