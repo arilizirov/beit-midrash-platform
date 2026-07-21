@@ -37,6 +37,9 @@ modules:
   content:
     path: features/content
     public: [index]
+  sources:
+    path: features/sources
+    public: [index]
   files:
     path: features/files
     public: [index]
@@ -73,6 +76,7 @@ allow:
   # ARCHITECTURE.md target: platform, ui, identity, taxonomy, search. Only the
   # platform edge is exercised so far (pure Note CRUD); widen per slice.
   content: [platform]
+  sources: [platform]
   files: [platform]
   taxonomy: [platform]
   identity: [platform]
