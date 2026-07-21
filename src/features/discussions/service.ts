@@ -297,3 +297,49 @@ export async function listSummaries(db: PrismaClient, groupId: string, discussio
     }),
   );
 }
+
+/** A flat text reply on a contribution (SPEC §4 — V1 keeps comments plain). */
+export async function addComment(
+  db: PrismaClient,
+  input: {
+    groupId: string;
+    contributionId: string;
+    authorId: string;
+    body: string;
+    parentCommentId?: string;
+  },
+) {
+  const body = input.body.trim();
+  if (!body) throw new Error("comment body cannot be empty");
+  const id = newId();
+  return withGroup(db, input.groupId, async (tx) => {
+    const comment = await tx.comment.create({
+      data: {
+        id,
+        groupId: input.groupId,
+        contributionId: input.contributionId,
+        authorId: input.authorId,
+        body,
+        parentCommentId: input.parentCommentId,
+      },
+    });
+    await logActivity(tx, {
+      groupId: input.groupId,
+      action: "comment.create",
+      entityType: "COMMENT",
+      entityId: comment.id,
+      actorId: input.authorId,
+    });
+    return comment;
+  });
+}
+
+export async function listComments(db: PrismaClient, groupId: string, contributionId: string) {
+  return withGroup(db, groupId, (tx) =>
+    tx.comment.findMany({
+      where: { contributionId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true, body: true, authorId: true, parentCommentId: true, createdAt: true },
+    }),
+  );
+}

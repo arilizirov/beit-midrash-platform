@@ -1,11 +1,13 @@
 // Public surface of the discussions domain. Export ONLY what other
 // domains may use. Everything else stays internal to this folder.
 export {
+  addComment,
   addContribution,
   addSummary,
   canEditContribution,
   createDiscussion,
   listContributions,
+  listComments,
   listDiscussions,
   listSummaries,
   setCanonicalSummary,
