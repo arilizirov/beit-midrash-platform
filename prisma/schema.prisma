@@ -43,14 +43,14 @@ model Group {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  memberships  Membership[]
-  invitations  Invitation[]
-  revisions    Revision[]
-  activityLogs ActivityLog[]
-  eventLogs    EventLog[]
-  categories   Category[]
-  topics       Topic[]
-  tags         Tag[]
+  memberships   Membership[]
+  invitations   Invitation[]
+  revisions     Revision[]
+  activityLogs  ActivityLog[]
+  eventLogs     EventLog[]
+  categories    Category[]
+  topics        Topic[]
+  tags          Tag[]
   attachments   Attachment[]
   links         InternalLink[]
   discussions   Discussion[]
@@ -115,13 +115,13 @@ model Topic {
   searchVector Unsupported("tsvector")?
   searchText   Unsupported("text")?
 
-  group    Group     @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Restrict)
   // Composite FK — the category must be in this group (see Category.parent).
-  category Category? @relation(fields: [categoryId, groupId], references: [id, groupId], onDelete: Restrict)
-  author   User      @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
-  tags     TopicTag[]
+  category    Category?    @relation(fields: [categoryId, groupId], references: [id, groupId], onDelete: Restrict)
+  author      User         @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  tags        TopicTag[]
   discussions Discussion[]
-  summaries   Summary[] @relation("TopicSummaries")
+  summaries   Summary[]    @relation("TopicSummaries")
 
   // NOTE the live-row unique is a PARTIAL index (WHERE "deletedAt" IS NULL)
   // in migration `content_taxonomy` — Prisma cannot express partial uniques,
@@ -207,11 +207,11 @@ model Discussion {
   updatedAt   DateTime         @updatedAt
   deletedAt   DateTime?
 
-  group  Group  @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  group  Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
   // Composite FK — the topic must be in this group. Postgres checks FKs with
   // row security OFF, so an id-only FK lets one tenant reference another's row.
-  topic  Topic  @relation(fields: [topicId, groupId], references: [id, groupId], onDelete: Restrict)
-  author User   @relation("DiscussionsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  topic  Topic @relation(fields: [topicId, groupId], references: [id, groupId], onDelete: Restrict)
+  author User  @relation("DiscussionsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
 
   contributions Contribution[]
   summaries     Summary[]
@@ -439,17 +439,17 @@ enum RevisionEntityType {
 /// SPEC convention; purge hard-deletes past it. FUTURE WRITER: version is
 /// MAX+1 — serialize per entity (row lock) or two saves race one version.
 model Revision {
-  id         String             @id @default(cuid(2))
-  groupId    String
-  entityType RevisionEntityType
-  entityId   String
-  version    Int
+  id          String             @id @default(cuid(2))
+  groupId     String
+  entityType  RevisionEntityType
+  entityId    String
+  version     Int
   contentJson Json
-  title      String?
-  editedById String
-  changeNote String?
-  createdAt  DateTime           @default(now())
-  deletedAt  DateTime?
+  title       String?
+  editedById  String
+  changeNote  String?
+  createdAt   DateTime           @default(now())
+  deletedAt   DateTime?
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
@@ -541,13 +541,13 @@ model User {
   updatedAt     DateTime   @updatedAt
   deletedAt     DateTime?
 
-  memberships     Membership[]
-  accounts        Account[]
-  sessions        Session[]
-  invitationsSent Invitation[]   @relation("InvitationsSent")
-  topicsAuthored  Topic[]        @relation("TopicsAuthored")
-  attachments     Attachment[]   @relation("AttachmentsUploaded")
-  linksCreated    InternalLink[] @relation("LinksCreated")
+  memberships           Membership[]
+  accounts              Account[]
+  sessions              Session[]
+  invitationsSent       Invitation[]   @relation("InvitationsSent")
+  topicsAuthored        Topic[]        @relation("TopicsAuthored")
+  attachments           Attachment[]   @relation("AttachmentsUploaded")
+  linksCreated          InternalLink[] @relation("LinksCreated")
   discussionsAuthored   Discussion[]   @relation("DiscussionsAuthored")
   contributionsAuthored Contribution[] @relation("ContributionsAuthored")
   contributionsCreated  Contribution[] @relation("ContributionsCreated")
