@@ -57,6 +57,7 @@ model Group {
   contributions Contribution[]
   summaries     Summary[]
   comments      Comment[]
+  notes         Note[]
 }
 
 enum TopicStatus {
@@ -147,6 +148,7 @@ model Tag {
 
   group  Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
   topics TopicTag[]
+  notes  NoteTag[]
 
   // NOTE both uniques for Tag are PARTIAL indexes (live rows only): slug in
   // `content_taxonomy`, name in `tag_name_unique`. Prisma cannot express
@@ -172,6 +174,15 @@ model TopicTag {
 
   @@id([topicId, tagId])
   @@index([groupId, tagId])
+}
+
+/// PRIVATE notes are author-only for EVERYONE, owner included (SPEC §6).
+/// That is not a role capability that can be granted — it is an ownership
+/// rule that outranks every role, so it is enforced in the RLS policy rather
+/// than left to a WHERE clause somebody must remember to write.
+enum NoteVisibility {
+  PRIVATE
+  GROUP
 }
 
 enum DiscussionStatus {
@@ -553,6 +564,7 @@ model User {
   contributionsCreated  Contribution[] @relation("ContributionsCreated")
   summariesAuthored     Summary[]      @relation("SummariesAuthored")
   commentsAuthored      Comment[]      @relation("CommentsAuthored")
+  notesAuthored         Note[]         @relation("NotesAuthored")
 }
 
 /// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
@@ -624,4 +636,41 @@ model Membership {
   // Soft-deleted rows are history and may repeat.
   @@index([userId, groupId])
   @@index([groupId, role])
+}
+
+/// A member's own writing (SPEC §4). Attaches to other content through
+/// InternalLink rather than a hard FK, so a note can point at anything
+/// without the schema growing a column per target type.
+model Note {
+  id          String         @id @default(cuid(2))
+  groupId     String
+  title       String?
+  contentJson Json?
+  contentText String?
+  /// Defaults to PRIVATE. A note that becomes group-visible by accident
+  /// cannot be un-seen, so the safe direction is the default one.
+  visibility  NoteVisibility @default(PRIVATE)
+  authorId    String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  group  Group     @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  author User      @relation("NotesAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  tags   NoteTag[]
+
+  @@unique([id, groupId])
+  @@index([groupId, authorId])
+}
+
+model NoteTag {
+  noteId  String
+  tagId   String
+  groupId String
+
+  note Note @relation(fields: [noteId, groupId], references: [id, groupId], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId, groupId], references: [id, groupId], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([groupId, tagId])
 }
