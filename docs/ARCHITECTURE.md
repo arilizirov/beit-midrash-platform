@@ -16,7 +16,7 @@ truth for connections; this file adds the human-readable "why".
 | Module | Purpose (one line) | Depends on | Spec ref |
 |---|---|---|---|
 | `app` | Next.js App Router — routes, server actions; the composition root that wires everything | all domains + platform, ui | §5 |
-| `platform` | db (Prisma), auth (Auth.js), storage (R2), jobs (Postgres queue), tenancy (TenancyGuard + RLS), telemetry (ActivityLog/EventLog) | — | §2, §6 |
+| `platform` | db (Prisma), auth (Auth.js), storage (R2), jobs (Postgres queue), tenancy (TenancyGuard + RLS), telemetry (ActivityLog/EventLog), purge (audited hard delete) | — | §2, §6 |
 | `ui` | RTL design-system primitives; pure presentation, no domain logic | — | §5 |
 | `shared_kernel` | ids (cuid), Result/errors, Hebrew bidi + nikud helpers, shared enums | — (imports nothing) | §4 |
 | `features/identity` | Group, User, Membership, Invitation, and the central `can()` RBAC helper | platform, ui | §4, §6 |
