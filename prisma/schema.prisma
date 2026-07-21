@@ -51,6 +51,8 @@ model Group {
   categories   Category[]
   topics       Topic[]
   tags         Tag[]
+  attachments  Attachment[]
+  links        InternalLink[]
 }
 
 enum TopicStatus {
@@ -148,6 +150,106 @@ model TopicTag {
 
   @@id([topicId, tagId])
   @@index([groupId, tagId])
+}
+
+/// SPEC §4: what an Attachment may hang off. Closed set on purpose — the
+/// polymorphism rule allows no DB FK on entityId, so the enum is the only
+/// thing keeping the target space honest.
+enum AttachmentTargetType {
+  DISCUSSION
+  CONTRIBUTION
+  ARTICLE
+  NOTE
+  NEWSPOST
+  TABLEBLOCK
+  SUMMARY
+}
+
+enum AttachmentKind {
+  IMAGE
+  PDF
+  FILE
+}
+
+/// SPEC §4: the directed content graph. Both ends are polymorphic.
+enum LinkTargetType {
+  TOPIC
+  DISCUSSION
+  CONTRIBUTION
+  SUMMARY
+  ARTICLE
+  NOTE
+  TABLEBLOCK
+  NEWSPOST
+  SOURCE
+}
+
+enum LinkRelation {
+  RELATED
+  REFERENCES
+  RESPONDS_TO
+  SUPERSEDES
+}
+
+/// Uploaded file metadata (SPEC §4/§7). R2 holds the blob; this row holds the
+/// key. Polymorphic: discriminator + id, NO DB FK on entityId (SPEC §4 rule).
+/// SPEC §4 says integrity should rest on soft-delete-only parents, a
+/// transactional cascade, and an orphan sweep — TODO: none of those three
+/// exist yet, nor does the `resolveEntity()` helper. Until they do, a stale
+/// entityId is possible and nothing collects abandoned blobs.
+model Attachment {
+  id           String               @id @default(cuid(2))
+  groupId      String
+  entityType   AttachmentTargetType
+  entityId     String
+  kind         AttachmentKind
+  // FOREVER-unique on purpose (ADR 0002 asks for this to be explicit): the
+  // blob outlives the row's tombstone, so a key must never be reused even
+  // after the attachment is soft-deleted.
+  objectKey    String               @unique
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  // TODO(SPEC §7): written by nothing yet — the sharp resize/thumbnail and
+  // EXIF-strip pipeline lands with the image slice. Columns exist so that
+  // pipeline needs no migration; they stay NULL until then.
+  width        Int?
+  height       Int?
+  thumbnailKey String?
+  uploadedById String
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  deletedAt    DateTime?
+
+  group      Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  uploadedBy User  @relation("AttachmentsUploaded", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([groupId, entityType, entityId])
+}
+
+/// A directed link between two pieces of content (SPEC §4). Polymorphic on
+/// both ends, so no FK either side; uniqueness stops duplicate edges.
+model InternalLink {
+  id          String         @id @default(cuid(2))
+  groupId     String
+  fromType    LinkTargetType
+  fromId      String
+  toType      LinkTargetType
+  toId        String
+  relation    LinkRelation   @default(RELATED)
+  createdById String
+  createdAt   DateTime       @default(now())
+  deletedAt   DateTime?
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  createdBy User  @relation("LinksCreated", fields: [createdById], references: [id], onDelete: Restrict)
+
+  // NOTE the live-row edge unique is a PARTIAL index in migration
+  // `attachments_links` — Prisma cannot express partial uniques, and it must
+  // lead with groupId (unique indexes are enforced BELOW RLS, so a shared
+  // key across tenants would collide on rows one tenant cannot even see).
+  @@index([groupId, fromType, fromId])
+  @@index([groupId, toType, toId])
 }
 
 /// SPEC §4 cross-cutting: closed set of revision-bearing entities.
@@ -274,8 +376,10 @@ model User {
   memberships     Membership[]
   accounts        Account[]
   sessions        Session[]
-  invitationsSent Invitation[] @relation("InvitationsSent")
-  topicsAuthored  Topic[]      @relation("TopicsAuthored")
+  invitationsSent Invitation[]   @relation("InvitationsSent")
+  topicsAuthored  Topic[]        @relation("TopicsAuthored")
+  attachments     Attachment[]   @relation("AttachmentsUploaded")
+  linksCreated    InternalLink[] @relation("LinksCreated")
 }
 
 /// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
