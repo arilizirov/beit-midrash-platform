@@ -34,6 +34,9 @@ modules:
   discussions:
     path: features/discussions
     public: [index]
+  content:
+    path: features/content
+    public: [index]
   files:
     path: features/files
     public: [index]
@@ -67,6 +70,9 @@ shared_kernel:
 # notifications, never the reverse — so search stays a leaf, not a hub.
 allow:
   discussions: [platform]
+  # ARCHITECTURE.md target: platform, ui, identity, taxonomy, search. Only the
+  # platform edge is exercised so far (pure Note CRUD); widen per slice.
+  content: [platform]
   files: [platform]
   taxonomy: [platform]
   identity: [platform]
