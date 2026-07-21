@@ -3,6 +3,7 @@
 export {
   confirmUpload,
   downloadUrl,
+  linkContent,
   listAttachments,
   startUpload,
 } from "./service";

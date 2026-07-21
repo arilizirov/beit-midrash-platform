@@ -1,5 +1,9 @@
 // Use-cases for files. Orchestrates model + platform. No framework leakage.
-import type { AttachmentTargetType } from "../../../generated/prisma/enums";
+import type {
+  AttachmentTargetType,
+  LinkRelation,
+  LinkTargetType,
+} from "../../../generated/prisma/enums";
 import type { PrismaClient } from "../../platform/db";
 import { objectKeyFor, type StorageDriver } from "../../platform/storage";
 import { logActivity } from "../../platform/telemetry";
@@ -151,4 +155,52 @@ export async function downloadUrl(
   );
   if (!row) throw new Error("attachment not found in this group");
   return storage.presignDownload(row.objectKey);
+}
+
+/** Idempotent: the same edge twice returns the existing one. */
+export async function linkContent(
+  db: PrismaClient,
+  input: {
+    groupId: string;
+    fromType: LinkTargetType;
+    fromId: string;
+    toType: LinkTargetType;
+    toId: string;
+    relation?: LinkRelation;
+    createdById: string;
+  },
+) {
+  const relation = input.relation ?? "RELATED";
+  return withGroup(db, input.groupId, async (tx) => {
+    const existing = await tx.internalLink.findFirst({
+      where: {
+        fromType: input.fromType,
+        fromId: input.fromId,
+        toType: input.toType,
+        toId: input.toId,
+        relation,
+      },
+    });
+    if (existing) return existing;
+    const created = await tx.internalLink.create({
+      data: {
+        groupId: input.groupId,
+        fromType: input.fromType,
+        fromId: input.fromId,
+        toType: input.toType,
+        toId: input.toId,
+        relation,
+        createdById: input.createdById,
+      },
+    });
+    await logActivity(tx, {
+      groupId: input.groupId,
+      action: "link.create",
+      entityType: input.fromType,
+      entityId: input.fromId,
+      actorId: input.createdById,
+      metadata: { toType: input.toType, toId: input.toId, relation },
+    });
+    return created;
+  });
 }
