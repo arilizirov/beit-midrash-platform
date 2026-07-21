@@ -41,6 +41,8 @@ export const SOFT_DELETABLE: ReadonlySet<string> = new Set([
   "InternalLink",
   "Discussion",
   "Contribution",
+  "Summary",
+  "Comment",
 ]);
 
 const FILTERED_READS: ReadonlySet<string> = new Set([

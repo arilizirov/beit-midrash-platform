@@ -55,6 +55,8 @@ model Group {
   links         InternalLink[]
   discussions   Discussion[]
   contributions Contribution[]
+  summaries     Summary[]
+  comments      Comment[]
 }
 
 enum TopicStatus {
@@ -119,6 +121,7 @@ model Topic {
   author   User      @relation("TopicsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
   tags     TopicTag[]
   discussions Discussion[]
+  summaries   Summary[] @relation("TopicSummaries")
 
   // NOTE the live-row unique is a PARTIAL index (WHERE "deletedAt" IS NULL)
   // in migration `content_taxonomy` — Prisma cannot express partial uniques,
@@ -211,6 +214,7 @@ model Discussion {
   author User   @relation("DiscussionsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
 
   contributions Contribution[]
+  summaries     Summary[]
 
   @@unique([id, groupId])
   @@index([groupId, topicId, status])
@@ -243,8 +247,77 @@ model Contribution {
   author     User       @relation("ContributionsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
   createdBy  User       @relation("ContributionsCreated", fields: [createdById], references: [id], onDelete: Restrict)
 
+  comments Comment[]
+
   @@unique([id, groupId])
   @@index([groupId, discussionId, position])
+}
+
+/// The version-of-record for a Discussion (SPEC §4). Deliberately 1:many —
+/// several summaries may coexist, with at most one marked canonical.
+///
+/// SPEC says "enforce at most one canonical per discussion in the service
+/// layer". We do that AND back it with a partial unique index, because a
+/// service-layer check is a read-then-write race: two people pinning
+/// different summaries at once would both pass the check and both commit.
+/// topicId lets a curated summary be pinned at Topic level instead.
+model Summary {
+  id            String    @id @default(cuid(2))
+  groupId       String
+  discussionId  String
+  topicId       String?
+  contentJson   Json?
+  contentText   String?
+  isCanonical   Boolean   @default(false)
+  generatedByAI Boolean   @default(false)
+  authorId      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  group      Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  discussion Discussion @relation(fields: [discussionId, groupId], references: [id, groupId], onDelete: Restrict)
+  topic      Topic?     @relation("TopicSummaries", fields: [topicId, groupId], references: [id, groupId], onDelete: Restrict)
+  author     User       @relation("SummariesAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+
+  // NOTE the one-canonical-per-discussion rule is a PARTIAL unique index in
+  // migration `summaries_comments` — Prisma cannot express partial uniques.
+  @@unique([id, groupId])
+  @@index([groupId, discussionId])
+  @@index([groupId, topicId])
+}
+
+/// A flat text reply on a Contribution (SPEC §4, V1 scope).
+///
+/// `body` is plain text on purpose: comments are not rich content in V1.
+/// anchorJson and voiceRecordingId are DECLARED AND UNUSED — reserved for
+/// Phase 2.5 (paragraph-anchored and voice comments) so that slice needs no
+/// migration. Nothing writes them today; do not start.
+model Comment {
+  id               String    @id @default(cuid(2))
+  groupId          String
+  contributionId   String
+  authorId         String
+  body             String
+  parentCommentId  String?
+  anchorJson       Json?
+  voiceRecordingId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  group        Group        @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  contribution Contribution @relation(fields: [contributionId, groupId], references: [id, groupId], onDelete: Restrict)
+  author       User         @relation("CommentsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  parent       Comment?     @relation("CommentThread", fields: [parentCommentId, contributionId], references: [id, contributionId], onDelete: Restrict)
+  replies      Comment[]    @relation("CommentThread")
+
+  @@unique([id, groupId])
+  /// Target of the parent self-relation: a reply is bound to its parent's
+  /// CONTRIBUTION, so a thread cannot straddle two contributions.
+  @@unique([id, contributionId])
+  @@index([groupId, contributionId, createdAt])
+  @@index([parentCommentId])
 }
 
 /// SPEC §4: what an Attachment may hang off. Closed set on purpose — the
@@ -478,6 +551,8 @@ model User {
   discussionsAuthored   Discussion[]   @relation("DiscussionsAuthored")
   contributionsAuthored Contribution[] @relation("ContributionsAuthored")
   contributionsCreated  Contribution[] @relation("ContributionsCreated")
+  summariesAuthored     Summary[]      @relation("SummariesAuthored")
+  commentsAuthored      Comment[]      @relation("CommentsAuthored")
 }
 
 /// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
