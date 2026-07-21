@@ -8,6 +8,7 @@ export {
   listContributions,
   listDiscussions,
   listSummaries,
+  setCanonicalSummary,
   setDiscussionStatus,
   type ContributionStatus,
   type DiscussionStatus,
