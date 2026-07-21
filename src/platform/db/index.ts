@@ -37,6 +37,8 @@ export const SOFT_DELETABLE: ReadonlySet<string> = new Set([
   "Category",
   "Topic",
   "Tag",
+  "Attachment",
+  "InternalLink",
 ]);
 
 const FILTERED_READS: ReadonlySet<string> = new Set([
