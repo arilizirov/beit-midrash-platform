@@ -23,6 +23,14 @@ specifically, with the file and line.
 - **Gamed checks.** Tests that assert nothing (or assert implementation, not
   behavior); a boundary "respected" by smuggling logic into a shared util; a big
   ugly change split into several to slip under the size cap. Call these out.
+- **Vacuous proof — ask this of EVERY test and gate: "would it still pass if the
+  thing it tests were broken?"** If yes, it proves nothing no matter how green.
+  Recurring shapes: a "fails closed" test whose failure path cannot actually
+  fire; a concurrency test whose inputs differ, so it passes under the very
+  design it exists to rule out; a permissions/isolation test connected as a
+  superuser or with the rule disabled; `expect(...).rejects.toThrow()` with no
+  matcher, satisfied by a TypeError. A gate is only real once someone has SEEN
+  it fail — say so when nobody has.
 - **Will-be-painful-to-change.** Hidden coupling, a decision that's hard to
   reverse, logic that belongs in another domain, a special case that will breed
   more special cases.

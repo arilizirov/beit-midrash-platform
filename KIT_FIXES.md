@@ -69,3 +69,63 @@ version. Each entry: symptom → root cause → fix.
 - `doctor` still refuses modules whose paths match no files. Correct: declare
   live modules only; keep the target map in `docs/ARCHITECTURE.md` and
   re-declare per slice (see the LearnTorah ADR-0001 pattern).
+
+# v5.2 (2026-07-21) — operating lessons
+
+Not bugs: workflow changes earned in a real build (LearnTorah, ~20 gated PRs).
+
+## 8. Review ran AFTER the PR was opened — a second CI cycle on every finding
+- **Symptom:** the cycle said "prove it, open the PR" (step 6) and only then
+  "submit to review" (step 7). Since reviewers found must-fix items on most
+  slices, nearly every PR paid: open → CI → review → fix → re-push → CI again.
+- **Fix:** review the WORKING diff before the PR exists (`AGENTS.md` step 6),
+  open the PR only once findings are addressed and verify is green again.
+- **Note:** this is ordering only — the review itself is unchanged, and it kept
+  earning its cost (it caught a cross-tenant FK hole, PII in an unerasable
+  audit log, and an arbitrary-tenant resolver in one build).
+
+## 9. No feedback loop from repeat findings to mechanical checks
+- **Symptom:** the same classes recurred across slices — unused public surface
+  (3x), vacuous tests (3x), documented-but-unenforced invariants (2x) — each
+  fixed by hand, never converted into a check.
+- **Fix:** `AGENTS.md` now says: same class flagged twice ⇒ mechanize it (lint
+  rule, test, generator change). A repeat finding is a missing check.
+
+## 10. Reviewers had no standing test for VACUOUS proof
+- **Symptom:** three green tests proved nothing — a "fails closed" test whose
+  failure path could not fire (no FK existed, so the bad insert succeeded), a
+  concurrency test using different inputs (passes under the very design it
+  rules out), and an isolation test connected as a SUPERUSER (RLS never binds
+  superusers). All were caught by luck, not by rubric.
+- **Fix:** `REVIEWER.md` and `AUDITOR.md` now carry the standing question —
+  *"would this still pass if the thing it tests were broken?"* — with the
+  recurring shapes listed. Generalizes fix #7's lesson from gates to tests.
+
+## 11. e2e could NEVER run on Windows (bare `npx`)
+- **Symptom:** adopting Playwright, `bigbrain_verify.py --only e2e` printed
+  "tool not found for 'e2e': npx" and failed — while `npx playwright test`
+  worked fine from the shell.
+- **Root cause:** the script already shims npm (`NPM = ["cmd","/c","npm"]` on
+  Windows, because npm is a `.CMD` shim that `CreateProcess` cannot exec
+  directly) but built the e2e step from a bare `["npx", ...]`. So the one
+  gate at the top of the test pyramid was unreachable on Windows — and,
+  because the kit ships e2e disabled until a config exists, nobody would hit
+  it until the day they adopted Playwright.
+- **Fix:** matching `NPX` shim, used for the e2e step (`bigbrain_verify.py`).
+
+## 12. Next.js projects nested under a home dir with a stray lockfile serve a STALE build
+- **Symptom:** not a kit bug, but a trap worth recording: sabotaging BOTH auth
+  layers changed nothing observable, because the dev server never recompiled.
+- **Root cause:** Next walks up for a workspace root, found a `package-lock.json`
+  in the user's HOME, and watched that tree instead of the project's.
+- **Fix:** pin `turbopack.root` in `next.config.ts`. Worth checking whenever
+  "my edit had no effect" — and a reminder that a green suite against a stale
+  server is the purest form of vacuous proof (see the REVIEWER/AUDITOR rule).
+
+## Considered and REJECTED
+- **Excluding `prisma/migrations/**` (or any migration dir) from the pr-size
+  gate.** Tempting — generated DDL eats the budget. But migrations are exactly
+  where hand-written security SQL lives (RLS policies, partial uniques,
+  composite tenant FKs); excluding them would drop the most sensitive code in
+  the repo out of the size discipline. Schema slices are simply numerous. The
+  gate was right; the plan bends to the gate.

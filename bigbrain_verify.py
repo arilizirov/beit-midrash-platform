@@ -33,6 +33,9 @@ from pathlib import Path
 
 # npm must be invoked via cmd on Windows (it's npm.cmd) — else WinError 193.
 NPM = ["cmd", "/c", "npm"] if os.name == "nt" else ["npm"]
+# npx needs the same shim: it is a .CMD shim on Windows, so bare "npx" raises
+# FileNotFoundError and the e2e step could NEVER run there (KIT_FIXES #11).
+NPX = ["cmd", "/c", "npx"] if os.name == "nt" else ["npx"]
 
 STEPS_ORDER = ["typecheck", "lint", "test", "e2e", "boundaries"]
 
@@ -123,7 +126,7 @@ def build_plan(root: Path, args) -> list[tuple[str, list[str]]]:
         # Thin end-to-end layer: run Playwright if the project has a config.
         # No-op until you adopt e2e — so it never blocks a repo that hasn't yet.
         if any((root / f"playwright.config.{ext}").exists() for ext in ("ts", "js", "mjs", "cjs")):
-            plan.append(("e2e", ["npx", "playwright", "test"]))
+            plan.append(("e2e", NPX + ["playwright", "test"]))
 
     if "boundaries" in want and (root / "boundaries.yaml").exists():
         guard = root / "bigbrainBoundaryGuard" / "check_boundaries.py"

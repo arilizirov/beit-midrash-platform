@@ -8,10 +8,11 @@ Read this first, every task. It routes — it doesn't teach. Depth lives in the 
 3. **Scaffold structure with the generator, never by hand.** New domain? `python bigbrainGenerator/new_domain.py <name>`. It stamps the horizontal skeleton (born correct, registered in `boundaries.yaml`, following the repo's folder convention from `boundaries.yaml`'s `layout:` — `domains` or `features`) — then you fill it **vertically**: one real end-to-end behavior before fleshing out any single layer. **Label it:** give each module a one-line purpose in `docs/ARCHITECTURE.md` AND a header docstring, map it to the spec, and keep these current — connections must match `boundaries.yaml`. This is the birds-eye map the auditor reads.
 4. **TDD, one behavior at a time.** Failing test first (red) → minimum code (green) → refactor green.
 5. **Verify before "done."** Run `python bigbrain_verify.py` (typecheck, lint, test, e2e, boundaries). All steps green or it isn't done. **A vertical slice isn't done until one real journey passes end-to-end** (`rules/12`; e2e runs once a Playwright config exists — see `bigbrainQA/`).
-6. **Prove it** in your final reply (template below), then open the PR.
-7. **Submit to review.** Fill the PR template (what built / skipped / why / spec ref). Invoke the **debt-hawk** subagent on the diff for debt; for non-trivial or structural changes also invoke the **auditor** subagent (reviews top-down against the map + spec and teaches in plain language). Address must-fix findings. (CI critic also runs if the API key is set.)
+6. **Review BEFORE you publish.** Invoke the **debt-hawk** subagent on the *working* diff (`git diff <base>...HEAD` — before the PR exists); for non-trivial or structural changes also invoke the **auditor** subagent (top-down against the map + spec, teaches in plain language). Address must-fix findings, re-run verify, THEN open the PR. Reviewing after the PR is open costs a second CI cycle on every finding — and findings are the normal case, not the exception. (CI critic also runs if the API key is set.)
+   **Harvest:** if a reviewer flags the same *class* of problem twice across slices, stop fixing it by hand — mechanize it (a lint rule, a test, a generator change). A repeat finding is a missing check, not a careless author.
+7. **Prove it** in your final reply (template below), then open the PR with its template filled (what built / skipped / why / spec ref).
 
-Steps 1–6 are *yours to follow* (surfaced). The repo also enforces a *mechanical* floor you cannot talk past: the boundary check, the small-PR limit, the dependency/secret audits, and branch protection. Don't try to route around them.
+Steps 1–7 are *yours to follow* (surfaced). The repo also enforces a *mechanical* floor you cannot talk past: the boundary check, the small-PR limit, the dependency/secret audits, and branch protection. Don't try to route around them.
 
 ## Also, always
 Preserve existing behavior unless a change was asked for; match surrounding code style; clear context between unrelated tasks.
@@ -91,33 +92,5 @@ Put the lesson in the strongest surface that fits:
 - a habit → this file
 Never a "lessons" file nothing reads.
 
-## PROJECT-SPECIFIC — LearnTorah (בית המדרש הדיגיטלי)
-
-**The build spec is [`docs/SPEC.md`](docs/SPEC.md) — it is the single source of
-truth for WHAT to build.** This file governs HOW (the cycle, TDD, gates). If they
-ever conflict on scope, SPEC.md wins; if they conflict on process, AGENTS.md wins.
-Reference it by path and open only the section you need — never paste it whole.
-(`docs/PLANNING.md` / `PLANNING.html` are the superseded planning dossier; SPEC.md
-line 3 says do not build from them. Keep them for history only.)
-
-- **Hebrew-first, RTL-native.** CSS logical properties only (`inline-start/end`);
-  per-segment bidi isolation (`dir="auto"`) for mixed Hebrew/Latin/source refs.
-  Never a translated skin over an English layout.
-- **Tenancy is a wall, not a convention.** Every content row carries `groupId`;
-  four fail-closed layers (SPEC §6) with **Postgres RLS mandatory**. A
-  cross-tenant must-fail test is a launch gate — never weaken it to go green.
-- **Never hard-delete.** Soft delete + Revision + ActivityLog from day 1; hard
-  removal only through the audited purge flow.
-- **PRIVATE Notes are author-only for everyone, including OWNER** — in UI *and*
-  in search. Any new read path must inherit that filter.
-- **No raw free-text source refs.** All ref entry goes through SourceRefService
-  (SPEC §9).
-- **Search generated columns must use the `IMMUTABLE` `bm_normalize()`** — never
-  `unaccent()` (STABLE); it will not compile (SPEC §8).
-- **Do not build the reserved-future entities** (VoiceRecording, Transcript,
-  Embedding, SourceSheet, StudyCard, AIConversation/AIMessage) or any AI feature
-  in the V1 critical path — `AIService` stays a stub seam.
-- **V1 has no cuts** (SPEC §3): everything listed ships. Sequence the risk via
-  the build order (Foundation → Core loop → Editor → Periphery); never quietly
-  defer a feature out of V1 — that is a scope change for the owner to make.
-- **Launch gates** live in SPEC §10. Treat them as the definition of done.
+## PROJECT-SPECIFIC
+<!-- per-project rules, conventions, danger zones go here -->

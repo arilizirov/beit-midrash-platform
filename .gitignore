@@ -30,3 +30,7 @@ __pycache__/
 
 # Prisma 7 generated client (rebuilt via `prisma generate`)
 generated/
+
+# Playwright output
+test-results/
+playwright-report/

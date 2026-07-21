@@ -20,6 +20,22 @@ permissions:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: learntorah_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # The journeys hit a real server backed by a real database — an e2e
+      # gate that green-lights an app which never booted proves nothing.
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/learntorah_e2e"
+      AUTH_SECRET: "ci-only-not-a-real-secret"
+      SEED_OWNER_EMAIL: "owner@ci.local"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,7 +51,10 @@ jobs:
         run: |
           if ls playwright.config.* >/dev/null 2>&1; then
             npm ci || npm i
-            npx playwright install --with-deps
+            npx prisma generate
+            npx prisma migrate deploy
+            npm run db:seed
+            npx playwright install --with-deps chromium
             python bigbrain_verify.py --only e2e
           else
             echo "no playwright.config.* — e2e not adopted yet, skipping (see bigbrainQA/)"
