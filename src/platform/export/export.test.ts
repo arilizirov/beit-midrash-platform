@@ -32,6 +32,16 @@ beforeAll(async () => {
       await tx.membership.create({
         data: { userId, groupId: gid, role: "OWNER", status: "ACTIVE" },
       });
+      await tx.invitation.create({
+        data: {
+          groupId: gid,
+          email: `invitee-${sfx}@e.local`,
+          role: "MEMBER",
+          tokenHash: `secret-${sfx}`,
+          invitedById: userId,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
+      });
       const cat = await tx.category.create({
         data: { groupId: gid, name: `קטגוריה-${sfx}`, slug: `c-${sfx}` },
       });
@@ -60,6 +70,19 @@ beforeAll(async () => {
       // an edge whose TOPIC end is soft-deleted — must not dangle in a
       // default (live-only) export
       await tx.topicTag.create({ data: { topicId: gone.id, tagId: tag.id, groupId: gid } });
+      await tx.attachment.create({
+        data: {
+          groupId: gid,
+          entityType: "NOTE",
+          entityId: live.id,
+          kind: "PDF",
+          objectKey: `${gid}/${"z".repeat(24)}/f-${sfx}.pdf`,
+          fileName: `f-${sfx}.pdf`,
+          mimeType: "application/pdf",
+          sizeBytes: 11,
+          uploadedById: userId,
+        },
+      });
       await tx.internalLink.create({
         data: {
           groupId: gid,
@@ -91,7 +114,7 @@ describe("exportGroup", () => {
     expect(dump.topicTags.length).toBeGreaterThan(0);
 
     const serialized = JSON.stringify(dump);
-    for (const foreign of ["live-b", "c-b", "tg-b", groupB]) {
+    for (const foreign of ["live-b", "c-b", "tg-b", "invitee-b@e.local", groupB]) {
       expect(serialized).not.toContain(foreign);
     }
   });
@@ -119,6 +142,7 @@ describe("exportGroup", () => {
     const dump = await dumpA();
     expect(dump.memberships[0]!.userId).toBe(userId);
     expect(dump.topics[0]!.authorId).toBe(userId);
+    expect(dump.files[0]!.uploadedById).toBe(userId);
     expect(dump.group.settingsJson === null || typeof dump.group.settingsJson === "object").toBe(
       true,
     );
@@ -158,5 +182,36 @@ describe("exportGroup", () => {
     await expect(
       exportGroup(db, { groupId: groupA, actorId: outsiderId }),
     ).rejects.toThrow(/not an active member/i);
+  });
+
+  it("carries pending invitations but never their secret", async () => {
+    const dump = await dumpA();
+    expect(dump.invitations.map((i) => i.email)).toContain("invitee-a@e.local");
+    // exporting a live credential would turn a backup into a way in
+    expect(JSON.stringify(dump)).not.toContain("secret-a");
+    expect(Object.keys(dump.invitations[0]!)).not.toContain("tokenHash");
+  });
+
+  it("lists files as a manifest — named and described, never inlined", async () => {
+    const dump = await dumpA();
+    expect(dump.files).toHaveLength(1);
+    const file = dump.files[0]!;
+    expect(file.objectKey.startsWith(`${groupA}/`)).toBe(true);
+    expect(file.sizeBytes).toBe(11);
+    // assert the EXACT shape: a blocklist of key names would still pass if
+    // the bytes arrived under some other name
+    expect(Object.keys(file).sort()).toEqual([
+      "deletedAt",
+      "entityId",
+      "entityType",
+      "fileName",
+      "id",
+      "kind",
+      "mimeType",
+      "objectKey",
+      "sizeBytes",
+      "thumbnailKey",
+      "uploadedById",
+    ]);
   });
 });
