@@ -44,6 +44,8 @@ export const SOFT_DELETABLE: ReadonlySet<string> = new Set([
   "Summary",
   "Comment",
   "Note",
+  "Source",
+  "SourceCitation",
 ]);
 
 const FILTERED_READS: ReadonlySet<string> = new Set([

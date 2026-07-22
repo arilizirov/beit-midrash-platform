@@ -58,6 +58,8 @@ model Group {
   summaries     Summary[]
   comments      Comment[]
   notes         Note[]
+  sources       Source[]
+  citations     SourceCitation[]
 }
 
 enum TopicStatus {
@@ -555,16 +557,18 @@ model User {
   memberships           Membership[]
   accounts              Account[]
   sessions              Session[]
-  invitationsSent       Invitation[]   @relation("InvitationsSent")
-  topicsAuthored        Topic[]        @relation("TopicsAuthored")
-  attachments           Attachment[]   @relation("AttachmentsUploaded")
-  linksCreated          InternalLink[] @relation("LinksCreated")
-  discussionsAuthored   Discussion[]   @relation("DiscussionsAuthored")
-  contributionsAuthored Contribution[] @relation("ContributionsAuthored")
-  contributionsCreated  Contribution[] @relation("ContributionsCreated")
-  summariesAuthored     Summary[]      @relation("SummariesAuthored")
-  commentsAuthored      Comment[]      @relation("CommentsAuthored")
-  notesAuthored         Note[]         @relation("NotesAuthored")
+  invitationsSent       Invitation[]     @relation("InvitationsSent")
+  topicsAuthored        Topic[]          @relation("TopicsAuthored")
+  attachments           Attachment[]     @relation("AttachmentsUploaded")
+  linksCreated          InternalLink[]   @relation("LinksCreated")
+  discussionsAuthored   Discussion[]     @relation("DiscussionsAuthored")
+  contributionsAuthored Contribution[]   @relation("ContributionsAuthored")
+  contributionsCreated  Contribution[]   @relation("ContributionsCreated")
+  summariesAuthored     Summary[]        @relation("SummariesAuthored")
+  commentsAuthored      Comment[]        @relation("CommentsAuthored")
+  notesAuthored         Note[]           @relation("NotesAuthored")
+  sourcesCreated        Source[]         @relation("SourcesCreated")
+  citationsCreated      SourceCitation[] @relation("CitationsCreated")
 }
 
 /// Auth.js (NextAuth v5) adapter tables — global identity, like User; NOT
@@ -673,4 +677,105 @@ model NoteTag {
 
   @@id([noteId, tagId])
   @@index([groupId, tagId])
+}
+
+/// SPEC §4: the work a Source belongs to. Canonical value TALMUD_BAVLI verbatim.
+/// Mirrors the ref normalizer's WorkCategory (features/sources/ref).
+enum WorkCategory {
+  TALMUD_BAVLI
+  TANACH
+  MISHNAH
+  RAMBAM
+  SHULCHAN_ARUCH
+  MIDRASH
+  OTHER
+}
+
+/// SPEC §4: SourceCitation's OWN entityType set — EXACTLY these six. Unlike
+/// AttachmentTargetType/RevisionEntityType it has NO TABLEBLOCK and NO TOPIC:
+/// a source is cited FROM a discussion/contribution/article/note/newspost/
+/// summary, and each polymorphic table declares its own discriminator set.
+enum CitationEntityType {
+  DISCUSSION
+  CONTRIBUTION
+  ARTICLE
+  NOTE
+  NEWSPOST
+  SUMMARY
+}
+
+/// A cited source (SPEC §4, §9), group-scoped in V1. ONE row per (groupId, ref):
+/// citations reuse it via find-or-create, never a duplicate per citation. The
+/// ref is always the normalizer's output — no raw free-text ref exists.
+model Source {
+  id            String       @id @default(cuid(2))
+  groupId       String
+  workTitle     String
+  workCategory  WorkCategory
+  /// The NORMALIZED ref string, SPACE form e.g. "Zevachim 19a" (the route form
+  /// uses a dot). Deduped on within a group by a PARTIAL unique index.
+  ref           String
+  /// Typed address parts + the two version stamps (normalizerVersion,
+  /// tableVersion) that let a future Sefaria sync re-normalize legacy rows.
+  refStructured Json
+  hebrewRef     String?
+  /// Cached Hebrew text; reserved for the Sefaria sync (unused in V1).
+  textHebrew    String?
+  sefariaRef    String?
+  createdById   String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  /// DB-GENERATED (migration `sources`): weighted tsvector + normalized text
+  /// from workTitle + hebrewRef + textHebrew via bm_normalize. Unsupported so
+  /// Prisma neither drops them nor exposes them as writable.
+  searchVector Unsupported("tsvector")?
+  searchText   Unsupported("text")?
+
+  group     Group            @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  createdBy User             @relation("SourcesCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  citations SourceCitation[]
+
+  // NOTE the live-row unique on (groupId, ref) is a PARTIAL index (WHERE
+  // "deletedAt" IS NULL) in migration `sources` — Prisma cannot express partial
+  // uniques, and the absolute form here would let a soft-deleted source squat
+  // its ref forever (ADR 0002).
+  @@unique([id, groupId])
+  @@index([groupId, workCategory])
+  @@index([searchVector], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+/// A citation linking a Source to some content (SPEC §4, polymorphic). sourceId
+/// is a REAL composite FK; entityId is a discriminator with NO DB FK (the
+/// polymorphism rule — integrity is a service-cascade + orphan-sweep concern).
+model SourceCitation {
+  id             String             @id @default(cuid(2))
+  groupId        String
+  sourceId       String
+  entityType     CitationEntityType
+  entityId       String
+  selectionText  String?
+  selectionRange Json?
+  note           String?
+  createdById    String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+
+  group     Group  @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  // Composite FK — the source must be in THIS group (Postgres validates FKs
+  // with row security OFF, so an id-only FK would let a tenant cite another
+  // tenant's source). onDelete is RESTRICT, NOT Cascade like the tag joins: a
+  // Source is a shared, deduped row reused by many citations, and a citation is
+  // subordinate to its ENTITY, not to the Source. When a Source purge is added,
+  // RESTRICT fails loud ("delete citations first") instead of silently
+  // destroying co-tenants' citations — do not "harmonize" this to Cascade.
+  source    Source @relation(fields: [sourceId, groupId], references: [id, groupId], onDelete: Restrict)
+  createdBy User   @relation("CitationsCreated", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, groupId])
+  @@index([groupId, entityType, entityId])
+  @@index([groupId, sourceId])
 }
