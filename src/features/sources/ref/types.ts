@@ -44,8 +44,43 @@ export type WorkEntry = {
 };
 
 /** Result of resolving the leading work token(s): the matched work plus the
- *  address tokens left for the locator parser, or a typed rejection. The full
- *  RefError union for address-level failures lands with the parser slice. */
+ *  address tokens left for the locator parser, or a typed rejection. */
 export type WorkResolution =
   | { ok: true; entry: WorkEntry; addressTokens: string[] }
   | { ok: false; code: "UNKNOWN_WORK" | "AMBIGUOUS_WORK" };
+
+export type RefErrorCode =
+  | "EMPTY"
+  | "UNKNOWN_WORK"
+  | "AMBIGUOUS_WORK"
+  | "MALFORMED_LOCATOR"
+  | "MISSING_AMUD"
+  | "AMUD_INVALID"
+  | "DAF_OUT_OF_RANGE"
+  | "UNSUPPORTED";
+
+/** A rejection, returned for expected-bad input — never a thrown exception. */
+export type RefError = { code: RefErrorCode; input: string; message: string };
+
+/** Typed address parts stored in Source.refStructured, plus the two version
+ *  stamps that let a future Sefaria sync re-normalize legacy rows (SPEC §9). */
+export type RefStructured = {
+  work: string;
+  category: WorkCategory;
+  locator: "DAF_AMUD";
+  daf: number;
+  amud: "a" | "b";
+  tableVersion: number;
+  normalizerVersion: number;
+};
+
+export type NormalizedRef = {
+  /** Space form, e.g. "Zevachim 19a" (the route form uses a dot). */
+  normalizedRef: string;
+  hebrewRef: string;
+  structured: RefStructured;
+};
+
+export type NormalizeResult =
+  | { ok: true; value: NormalizedRef }
+  | { ok: false; error: RefError };
