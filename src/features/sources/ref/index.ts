@@ -1,3 +1,5 @@
-// Public surface of the pure ref-normalizer core (SPEC §9). Grows per slice;
-// slice 1a exposes only the gematria codec that every locator kind reuses.
+// Public surface of the pure ref-normalizer core (SPEC §9). Grows per slice.
 export { parseGematria, formatGematria } from "./gematria";
+export { foldWorkName } from "./fold";
+export { resolveWork, WORKS } from "./works";
+export type { WorkCategory, LocatorKind, WorkEntry, WorkRange, WorkResolution } from "./types";
