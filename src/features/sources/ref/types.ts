@@ -27,8 +27,13 @@ export type LocatorKind =
  *  absent means both amudim exist on the last daf. */
 export type DafAmudRange = { kind: "DAF_AMUD"; maxDaf: number; lastDafAmud?: "a" | "b" };
 
-/** The union grows as locator kinds land (Tanach adds CHAPTER_VERSE next). */
-export type WorkRange = DafAmudRange;
+/** Tanach: chapter 1..`chapters`, verse ≥ 1 (whole-chapter refs omit the verse).
+ *  Per-chapter verse counts are deferred to the Sefaria enrichment, so V1
+ *  validates the chapter bound and verse ≥ 1 only. */
+export type ChapterVerseRange = { kind: "CHAPTER_VERSE"; chapters: number };
+
+/** The union grows as locator kinds land (Mishnah/Rambam/SA next). */
+export type WorkRange = DafAmudRange | ChapterVerseRange;
 
 export type WorkEntry = {
   /** Title used in the canonical ref: transliteration for Talmud ("Shabbat"),
@@ -57,6 +62,8 @@ export type RefErrorCode =
   | "MISSING_AMUD"
   | "AMUD_INVALID"
   | "DAF_OUT_OF_RANGE"
+  | "CHAPTER_OUT_OF_RANGE"
+  | "VERSE_OUT_OF_RANGE"
   | "UNSUPPORTED";
 
 /** A rejection, returned for expected-bad input — never a thrown exception. */
@@ -64,15 +71,10 @@ export type RefError = { code: RefErrorCode; input: string; message: string };
 
 /** Typed address parts stored in Source.refStructured, plus the two version
  *  stamps that let a future Sefaria sync re-normalize legacy rows (SPEC §9). */
-export type RefStructured = {
-  work: string;
-  category: WorkCategory;
-  locator: "DAF_AMUD";
-  daf: number;
-  amud: "a" | "b";
-  tableVersion: number;
-  normalizerVersion: number;
-};
+type Versioned = { work: string; category: WorkCategory; tableVersion: number; normalizerVersion: number };
+export type RefStructured =
+  | (Versioned & { locator: "DAF_AMUD"; daf: number; amud: "a" | "b" })
+  | (Versioned & { locator: "CHAPTER_VERSE"; chapter: number; verse: number | null });
 
 export type NormalizedRef = {
   /** Space form, e.g. "Zevachim 19a" (the route form uses a dot). */
