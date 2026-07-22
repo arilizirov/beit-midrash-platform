@@ -37,6 +37,26 @@ function talmud(
 // (Berakhot 64a). Absent means both amudim are allowed on the last daf, so the
 // validator over-accepts a rare nonexistent final "b" rather than risk
 // rejecting a valid ref; the authoritative table lands with the Sefaria slice.
+// Tanach: canonical is the ENGLISH book name (Sefaria's alignment), Hebrew is
+// the traditional title. `chapters` bounds the perek; split books carry the
+// Roman-numeral designation in both the canonical ("I Samuel") and the Hebrew
+// ("שמואל א"), and a bare "Shmuel"/"שמואל" is left ambiguous by the resolver.
+function tanach(
+  canonical: string,
+  hebrew: string,
+  chapters: number,
+  aliases: readonly string[],
+): WorkEntry {
+  return {
+    canonical,
+    hebrew,
+    category: "TANACH",
+    locator: "CHAPTER_VERSE",
+    range: { kind: "CHAPTER_VERSE", chapters },
+    aliases: [canonical, hebrew, ...aliases],
+  };
+}
+
 export const WORKS: readonly WorkEntry[] = [
   talmud("Berakhot", "ברכות", 64, ["Berachot", "Berachos", "Brachot", "Brachos", "Berakhoth", "Brochos"], "a"),
   talmud("Shabbat", "שבת", 157, ["Shabbos", "Shabbath", "Shabos", "Shabat"]),
@@ -60,6 +80,31 @@ export const WORKS: readonly WorkEntry[] = [
   talmud("Menachot", "מנחות", 110, ["Menachos", "Menochos"]),
   talmud("Chullin", "חולין", 142, ["Hullin", "Chulin", "Hulin"]),
   talmud("Niddah", "נדה", 73, ["Nidda", "Niddah", "Nida"]),
+
+  // ---- Tanach (English canonical) --------------------------------------
+  tanach("Genesis", "בראשית", 50, ["Bereishit", "Bereshit", "Bereishis", "Breishis", "בר׳"]),
+  tanach("Exodus", "שמות", 40, ["Shemot", "Shemos", "Shmos", "Shmot"]),
+  tanach("Leviticus", "ויקרא", 27, ["Vayikra", "Vayikro"]),
+  tanach("Numbers", "במדבר", 36, ["Bamidbar", "Bemidbar"]),
+  tanach("Deuteronomy", "דברים", 34, ["Devarim", "Devorim"]),
+  tanach("Isaiah", "ישעיהו", 66, ["Yeshayahu", "Yeshaya", "Yeshayah"]),
+  tanach("Jeremiah", "ירמיהו", 52, ["Yirmiyahu", "Yirmiya"]),
+  tanach("Ezekiel", "יחזקאל", 48, ["Yechezkel"]),
+  tanach("I Samuel", "שמואל א", 31, ["Shmuel Alef", "1 Samuel", "First Samuel"]),
+  tanach("II Samuel", "שמואל ב", 24, ["Shmuel Bet", "2 Samuel", "Second Samuel"]),
+  tanach("I Kings", "מלכים א", 22, ["Melachim Alef", "1 Kings"]),
+  tanach("II Kings", "מלכים ב", 25, ["Melachim Bet", "2 Kings"]),
+  tanach("Psalms", "תהלים", 150, ["Tehillim", "Tehilim"]),
+  tanach("Proverbs", "משלי", 31, ["Mishlei"]),
+  tanach("Job", "איוב", 42, ["Iyov"]),
+  tanach("Song of Songs", "שיר השירים", 8, ["Shir HaShirim", "Shir Hashirim", "Canticles"]),
+  tanach("Ruth", "רות", 4, ["Rus"]),
+  tanach("Lamentations", "איכה", 5, ["Eichah", "Eicha"]),
+  tanach("Ecclesiastes", "קהלת", 12, ["Kohelet", "Koheles"]),
+  tanach("Esther", "אסתר", 10, ["Ester"]),
+  tanach("Daniel", "דניאל", 12, []),
+  tanach("Ezra", "עזרא", 10, []),
+  tanach("Nehemiah", "נחמיה", 13, ["Nechemiah"]),
 ];
 
 type Indexes = { aliasIndex: Map<string, WorkEntry>; ambiguousPrefixes: Set<string> };

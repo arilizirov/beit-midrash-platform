@@ -10,6 +10,7 @@
  * input, so "Shabbos 21a", "שבת כ״א ע״א" and "שבת דף כא." all collapse to one
  * value and dedup on the tuple.
  */
+import { parseChapterVerse } from "./chapter-verse";
 import { parseDafAmud } from "./daf-amud";
 import { formatGematria } from "./gematria";
 import type { NormalizeResult, RefError, RefStructured, WorkEntry } from "./types";
@@ -46,6 +47,34 @@ function canonicalizeDafAmud(entry: WorkEntry, daf: number, amud: "a" | "b"): No
   };
 }
 
+function canonicalizeChapterVerse(
+  entry: WorkEntry,
+  chapter: number,
+  verse: number | null,
+): NormalizeResult {
+  const structured: RefStructured = {
+    work: entry.canonical,
+    category: entry.category,
+    locator: "CHAPTER_VERSE",
+    chapter,
+    verse,
+    tableVersion: WORKS_TABLE_VERSION,
+    normalizerVersion: NORMALIZER_VERSION,
+  };
+  // A whole-chapter ref (Psalms 23) omits the verse in both strings.
+  const suffix = verse === null ? `${chapter}` : `${chapter}:${verse}`;
+  const hebSuffix =
+    verse === null ? formatGematria(chapter) : `${formatGematria(chapter)}:${formatGematria(verse)}`;
+  return {
+    ok: true,
+    value: {
+      normalizedRef: `${entry.canonical} ${suffix}`,
+      hebrewRef: `${entry.hebrew} ${hebSuffix}`,
+      structured,
+    },
+  };
+}
+
 export function normalizeRef(raw: string): NormalizeResult {
   const input = raw ?? "";
   const trimmed = input.trim();
@@ -69,6 +98,12 @@ export function normalizeRef(raw: string): NormalizeResult {
     return canonicalizeDafAmud(work.entry, parsed.daf, parsed.amud);
   }
 
-  // No other locator kind exists in the table yet; the next slices add them.
+  if (work.entry.locator === "CHAPTER_VERSE") {
+    const parsed = parseChapterVerse(work.entry, work.addressTokens, input);
+    if ("code" in parsed) return reject(parsed);
+    return canonicalizeChapterVerse(work.entry, parsed.chapter, parsed.verse);
+  }
+
+  // Mishnah/Rambam/SA locator kinds land in later slices.
   return reject({ code: "UNSUPPORTED", input, message: `${work.entry.locator} not yet supported` });
 }
