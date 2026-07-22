@@ -13,6 +13,8 @@
 import { parseChapterVerse } from "./chapter-verse";
 import { parseDafAmud } from "./daf-amud";
 import { formatGematria } from "./gematria";
+import { parseChapterMishnah } from "./mishnah";
+import { formatNumberedPair } from "./numbered-locator";
 import type { NormalizeResult, RefError, RefStructured, WorkEntry } from "./types";
 import { resolveWork } from "./works";
 
@@ -62,9 +64,32 @@ function canonicalizeChapterVerse(
     normalizerVersion: NORMALIZER_VERSION,
   };
   // A whole-chapter ref (Psalms 23) omits the verse in both strings.
-  const suffix = verse === null ? `${chapter}` : `${chapter}:${verse}`;
-  const hebSuffix =
-    verse === null ? formatGematria(chapter) : `${formatGematria(chapter)}:${formatGematria(verse)}`;
+  const { suffix, hebSuffix } = formatNumberedPair(chapter, verse);
+  return {
+    ok: true,
+    value: {
+      normalizedRef: `${entry.canonical} ${suffix}`,
+      hebrewRef: `${entry.hebrew} ${hebSuffix}`,
+      structured,
+    },
+  };
+}
+
+function canonicalizeChapterMishnah(
+  entry: WorkEntry,
+  perek: number,
+  mishnah: number | null,
+): NormalizeResult {
+  const structured: RefStructured = {
+    work: entry.canonical,
+    category: entry.category,
+    locator: "CHAPTER_MISHNAH",
+    perek,
+    mishnah,
+    tableVersion: WORKS_TABLE_VERSION,
+    normalizerVersion: NORMALIZER_VERSION,
+  };
+  const { suffix, hebSuffix } = formatNumberedPair(perek, mishnah);
   return {
     ok: true,
     value: {
@@ -104,6 +129,12 @@ export function normalizeRef(raw: string): NormalizeResult {
     return canonicalizeChapterVerse(work.entry, parsed.chapter, parsed.verse);
   }
 
-  // Mishnah/Rambam/SA locator kinds land in later slices.
+  if (work.entry.locator === "CHAPTER_MISHNAH") {
+    const parsed = parseChapterMishnah(work.entry, work.addressTokens, input);
+    if ("code" in parsed) return reject(parsed);
+    return canonicalizeChapterMishnah(work.entry, parsed.perek, parsed.mishnah);
+  }
+
+  // Rambam/SA locator kinds land in later slices.
   return reject({ code: "UNSUPPORTED", input, message: `${work.entry.locator} not yet supported` });
 }

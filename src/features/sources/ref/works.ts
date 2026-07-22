@@ -57,6 +57,29 @@ function tanach(
   };
 }
 
+// Mishnah requires the "Mishnah"/"Mishna"/"משנה" prefix — a bare tractate name
+// stays Talmud (Berakhot) or unknown (Peah), never silently reclassified. The
+// helper generates every prefix × base spelling so "Mishna Peah" and "משנה
+// ברכות" both resolve; `extraAliases` adds unprefixed forms like "Pirkei Avot".
+function mishnah(
+  tractate: string,
+  hebrewTractate: string,
+  perakim: number,
+  extraAliases: readonly string[] = [],
+): WorkEntry {
+  const prefixes = ["Mishnah", "Mishna", "משנה"];
+  const bases = [tractate, hebrewTractate];
+  const prefixed = prefixes.flatMap((p) => bases.map((b) => `${p} ${b}`));
+  return {
+    canonical: `Mishnah ${tractate}`,
+    hebrew: `משנה ${hebrewTractate}`,
+    category: "MISHNAH",
+    locator: "CHAPTER_MISHNAH",
+    range: { kind: "CHAPTER_MISHNAH", perakim },
+    aliases: [...prefixed, ...extraAliases],
+  };
+}
+
 export const WORKS: readonly WorkEntry[] = [
   talmud("Berakhot", "ברכות", 64, ["Berachot", "Berachos", "Brachot", "Brachos", "Berakhoth", "Brochos"], "a"),
   talmud("Shabbat", "שבת", 157, ["Shabbos", "Shabbath", "Shabos", "Shabat"]),
@@ -105,6 +128,20 @@ export const WORKS: readonly WorkEntry[] = [
   tanach("Daniel", "דניאל", 12, []),
   tanach("Ezra", "עזרא", 10, []),
   tanach("Nehemiah", "נחמיה", 13, ["Nechemiah"]),
+
+  // ---- Mishnah (perek:mishnah, "Mishnah" prefix required) --------------
+  mishnah("Berakhot", "ברכות", 9),
+  mishnah("Peah", "פאה", 8),
+  mishnah("Shabbat", "שבת", 24),
+  mishnah("Eruvin", "עירובין", 10),
+  mishnah("Pesachim", "פסחים", 10),
+  mishnah("Sukkah", "סוכה", 5),
+  mishnah("Bava Kamma", "בבא קמא", 10),
+  mishnah("Bava Metzia", "בבא מציעא", 10),
+  mishnah("Bava Batra", "בבא בתרא", 10),
+  mishnah("Sanhedrin", "סנהדרין", 11),
+  mishnah("Makkot", "מכות", 3),
+  mishnah("Avot", "אבות", 6, ["Pirkei Avot", "Pirkei Avos", "פרקי אבות"]),
 ];
 
 type Indexes = { aliasIndex: Map<string, WorkEntry>; ambiguousPrefixes: Set<string> };
@@ -147,7 +184,10 @@ export function buildIndexes(works: readonly WorkEntry[]): Indexes {
 
 const { aliasIndex: ALIAS_INDEX, ambiguousPrefixes: AMBIGUOUS_PREFIXES } = buildIndexes(WORKS);
 
-// Work names run 1..3 tokens (e.g. "Rosh Hashanah", "Shir HaShirim" later).
+// Work names run 1..3 tokens — including any required prefix, which counts
+// toward the budget: "Mishnah Bava Metzia" is exactly 3. A prefixed work with a
+// longer base would exceed this and resolve to UNKNOWN_WORK; widen the constant
+// before adding one.
 const MAX_WORK_TOKENS = 3;
 
 /**

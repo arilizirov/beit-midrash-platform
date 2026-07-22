@@ -1,5 +1,5 @@
 {
-  "_note": "Audited subset of the workflow-generated §10.4 acceptance set: Talmud + Tanach (implemented). Ranges and prose-embedded refs are deferred; Mishnah/Rambam/SA rows land with those slices.",
+  "_note": "Audited subset of the workflow-generated §10.4 acceptance set: Talmud + Tanach + Mishnah (implemented). Ranges and prose-embedded refs are deferred; Mishnah/Rambam/SA rows land with those slices.",
   "rows": [
     {"input":"Shabbos 21a","status":"normalized","ref":"Shabbat 21a","heb":"שבת כ״א ע״א"},
     {"input":"Shabbat 21a","status":"normalized","ref":"Shabbat 21a","heb":"שבת כ״א ע״א"},
@@ -80,6 +80,13 @@
     {"input":"Zevachim 1a","status":"rejected"},
     {"input":"Zevachim 19c","status":"rejected"},
     {"input":"Zevachim 121a","status":"rejected"},
-    {"input":"Zevachim 19:5","status":"rejected"}
+    {"input":"Zevachim 19:5","status":"rejected"},
+    {"input":"Mishnah Berakhot 1:1","status":"normalized","ref":"Mishnah Berakhot 1:1","heb":"משנה ברכות א׳:א׳"},
+    {"input":"Mishna Peah 2:3","status":"normalized","ref":"Mishnah Peah 2:3","heb":"משנה פאה ב׳:ג׳"},
+    {"input":"Pirkei Avot 1:1","status":"normalized","ref":"Mishnah Avot 1:1","heb":"משנה אבות א׳:א׳"},
+    {"input":"Mishnah Berakhot 10:1","status":"rejected"},
+    {"input":"Mishnah Shabbat Bameh 2","status":"rejected"},
+    {"input":"משנה ברכות א׳:א׳","status":"normalized","ref":"Mishnah Berakhot 1:1","heb":"משנה ברכות א׳:א׳"},
+    {"input":"Mishnah Avot 5","status":"normalized","ref":"Mishnah Avot 5","heb":"משנה אבות ה׳"}
   ]
 }

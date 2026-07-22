@@ -32,8 +32,11 @@ export type DafAmudRange = { kind: "DAF_AMUD"; maxDaf: number; lastDafAmud?: "a"
  *  validates the chapter bound and verse ≥ 1 only. */
 export type ChapterVerseRange = { kind: "CHAPTER_VERSE"; chapters: number };
 
-/** The union grows as locator kinds land (Mishnah/Rambam/SA next). */
-export type WorkRange = DafAmudRange | ChapterVerseRange;
+/** Mishnah: perek 1..`perakim`, mishnah ≥ 1 (whole-perek refs omit the mishnah). */
+export type ChapterMishnahRange = { kind: "CHAPTER_MISHNAH"; perakim: number };
+
+/** The union grows as locator kinds land (Rambam/SA next). */
+export type WorkRange = DafAmudRange | ChapterVerseRange | ChapterMishnahRange;
 
 export type WorkEntry = {
   /** Title used in the canonical ref: transliteration for Talmud ("Shabbat"),
@@ -74,7 +77,8 @@ export type RefError = { code: RefErrorCode; input: string; message: string };
 type Versioned = { work: string; category: WorkCategory; tableVersion: number; normalizerVersion: number };
 export type RefStructured =
   | (Versioned & { locator: "DAF_AMUD"; daf: number; amud: "a" | "b" })
-  | (Versioned & { locator: "CHAPTER_VERSE"; chapter: number; verse: number | null });
+  | (Versioned & { locator: "CHAPTER_VERSE"; chapter: number; verse: number | null })
+  | (Versioned & { locator: "CHAPTER_MISHNAH"; perek: number; mishnah: number | null });
 
 export type NormalizedRef = {
   /** Space form, e.g. "Zevachim 19a" (the route form uses a dot). */
